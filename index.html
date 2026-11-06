@@ -2872,7 +2872,7 @@ const needsOf=jobId=>Object.entries(((S.needs||{})[jobId]||{}).lines||{}).filter
 const needName=l=>l.matId?matName(l.matId):l.itemId?itemName(l.itemId):(l.desc||'Material');
 const needUnit=l=>l.matId?matUnit(l.matId):l.itemId?itemUnit(l.itemId):(l.unit||'ea');
 const needIsStone=l=>l.matId?matIsStone(l.matId):l.itemId?itemMade(l.itemId):!!l.stone;
-const needDelivered=(jobId,l)=>l.matId?allTickets().filter(t=>!t.void&&t.mode==='own'&&t.jobId===jobId&&t.mat===l.matId).reduce((a,t)=>a+(+t.t||0),0):l.itemId?Math.max(0,(jobStock(jobId)[l.itemId]||{}).q||0):0;
+const needDelivered=(jobId,l)=>(+l.delivered0||0)+(l.matId?allTickets().filter(t=>!t.void&&t.mode==='own'&&t.jobId===jobId&&t.mat===l.matId).reduce((a,t)=>a+(+t.t||0),0):l.itemId?Math.max(0,(jobStock(jobId)[l.itemId]||{}).q||0):0);
 function needOptions(sel){const ym=yardMats();const stone=ym.filter(m=>matIsStone(m.id)),rest=materials().filter(m=>!matIsStone(m.id));const cats=[...new Set(stone.map(m=>m.cat||'Stone'))];
   return `<option value="">Pick a material</option>`+cats.map(c=>`<optgroup label="${esc(c)} (stone shop)">${stone.filter(m=>(m.cat||'Stone')===c).map(m=>`<option value="m:${esc(m.id)}"${sel==='m:'+m.id?' selected':''}>${esc(m.name)}</option>`).join('')}</optgroup>`).join('')+`<optgroup label="Pit and yard materials">${rest.map(m=>`<option value="m:${esc(m.id)}"${sel==='m:'+m.id?' selected':''}>${esc(m.name)}</option>`).join('')}</optgroup><optgroup label="Yard stock">${stockItems().map(i=>`<option value="i:${esc(i.id)}"${sel==='i:'+i.id?' selected':''}>${esc(i.name)}</option>`).join('')}</optgroup>`}
 function needState(jobId,l){
@@ -2898,6 +2898,7 @@ function needForm(jobId,lineId){const l=lineId?(((S.needs||{})[jobId]||{}).lines
   <div class="field"><label for="nd-i">Item</label><select id="nd-i" name="item" data-needsel="1">${needOptions(l.matId?'m:'+l.matId:l.itemId?'i:'+l.itemId:'')}<option value="other"${!l.itemId&&!l.matId&&lineId?' selected':''}>Something else (type it in)…</option></select></div>
   <div id="nd-custom"${l.itemId||l.matId||!lineId?' hidden':''}><div class="row2"><div class="field"><label for="nd-d">Describe it</label><input id="nd-d" name="desc" value="${esc(l.desc||'')}" placeholder="5 ft granite steps"></div><div class="field"><label for="nd-u">Unit</label><input id="nd-u" name="unit" value="${esc(l.unit||'ea')}" placeholder="ea, sq ft, ton"></div></div><label class="check"><input type="checkbox" name="stone"${l.stone?' checked':''}> Made in the yard by the stone shop</label></div>
   <div class="row2"><div class="field"><label for="nd-q">Quantity needed</label><input id="nd-q" name="qty" type="number" step="any" min="0" inputmode="decimal" required value="${esc(l.qty??'')}"></div><div class="field"><label for="nd-b">Need it on site by</label><input id="nd-b" name="needBy" type="date" value="${esc(l.needBy||'')}"></div></div>
+  <div class="row2"><div class="field"><label for="nd-d0">Already on site before tracking</label><input id="nd-d0" name="delivered0" type="number" step="any" min="0" inputmode="decimal" value="${esc(l.delivered0||'')}" placeholder="0"></div><div class="field"><label for="nd-m0">Already made, not yet delivered</label><input id="nd-m0" name="made0" type="number" step="any" min="0" inputmode="decimal" value="" placeholder="0"></div></div>
   <div class="field"><label for="nd-n">Note for the yard</label><input id="nd-n" name="note" value="${esc(l.note||'')}" placeholder="3 landings, 150 sq ft flag. Thick ones for the bottom run."></div>
   <p class="err" id="formerr"></p><div class="mactions"><button type="button" class="btn" data-act="close">Cancel</button><button class="btn primary">${lineId?'Save':'Add to job'}</button></div></form>`}
 function needMadeForm(jobId,lineId){const l=(((S.needs||{})[jobId]||{}).lines||{})[lineId];if(!l)return '';const s=needState(jobId,l);
@@ -2932,7 +2933,7 @@ Object.assign(ACT,{
 Object.assign(FORMS,{
   need:async(fd,f)=>{const jobId=f.dataset.j||fd.get('job');if(!jobId)return formErr('Pick the job.');const item=fd.get('item');const qty=+fd.get('qty');if(!(qty>0))return formErr('Enter how many are needed.');
     const id=f.dataset.id||newId();const prev=(((S.needs||{})[jobId]||{}).lines||{})[id]||{};
-    const line={at:prev.at||Date.now(),by:prev.by||myId()||'',qty,needBy:fd.get('needBy')||'',note:(fd.get('note')||'').trim(),made:prev.made||0};
+    const line={at:prev.at||Date.now(),by:prev.by||myId()||'',qty,needBy:fd.get('needBy')||'',note:(fd.get('note')||'').trim(),made:(prev.made||0)+(+fd.get('made0')||0),delivered0:+fd.get('delivered0')||0};
     if(!item)return formErr('Pick the item, or choose "Something else".');
     line.itemId='';line.matId='';line.desc='';line.unit='';line.stone=false;
     if(item==='other'){const desc=(fd.get('desc')||'').trim();if(!desc)return formErr('Describe the material.');line.desc=desc;line.unit=(fd.get('unit')||'ea').trim()||'ea';line.stone=fd.get('stone')==='on'}else if(item.startsWith('m:'))line.matId=item.slice(2);else if(item.startsWith('i:'))line.itemId=item.slice(2);else return formErr('Pick the material.');
