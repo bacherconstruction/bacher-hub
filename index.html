@@ -446,7 +446,7 @@ const previewBlock=()=>{if(isAdmin)return false;if(!isPreview()&&!officePersonPr
 /* office-self-clock: own meId, or office:<pid> preview of that person's clock (read-only) */
 const selfClockPid=()=>{const op=officePersonPreview();if(op)return op;if(isOffice&&meId&&!viewAs&&S.people[meId])return meId;return null};
 const canSelfClock=()=>!!selfClockPid();
-const clockCardHtml=(pid)=>{const html=clockCard(pid);if(!officePersonPreview())return html;return `<div data-feat="office-self-clock-preview" style="opacity:.78"><p class="banner info" style="margin:0 0 10px">Preview only — switch Viewing as back to yourself to clock in or make changes.</p><div style="pointer-events:none;user-select:none">${html.replace(/<button\b/g,'<button disabled aria-disabled="true"').replace(/<select\b/g,'<select disabled')}</div></div>`};
+const clockCardHtml=(pid)=>{const html=clockCard(pid);if(!officePersonPreview()||isAdmin)return html;return `<div data-feat="office-self-clock-preview" style="opacity:.78"><p class="banner info" style="margin:0 0 10px">Preview only — switch Viewing as back to yourself to clock in or make changes.</p><div style="pointer-events:none;user-select:none">${html.replace(/<button\b/g,'<button disabled aria-disabled="true"').replace(/<select\b/g,'<select disabled')}</div></div>`};
 const seeWages=()=>isAdmin&&!viewAs;
 const roleLabel=()=>asField()?'Field':(isAdmin&&!viewAs)?'Admin':'Office';
 const activePeople=()=>Object.entries(S.people).filter(([,p])=>p&&p.active!==false).sort((a,b)=>String(a[1].name).localeCompare(b[1].name));
@@ -820,7 +820,7 @@ function banner(field){
   let h='';
   if(mode==='local')h+=`<div class="banner">Sample data. Add your Supabase URL and key at the top of index.html to use real company data.</div>`;
   if(isOffice&&fieldPreview())h+=isAdmin?`<div class="banner info">You're using the app as ${esc(personName(viewAs))}. Anything you do here is saved as them.</div>`:`<div class="banner info">You're previewing the field view as ${esc(personName(viewAs))}. Preview only — clocking in, edits and uploads are blocked.</div>`;
-  if(isAdmin&&String(viewAs||'').startsWith('office:'))h+=`<div class="banner info">You're previewing what ${esc(personName(viewAs.slice(7)))} sees with their office access.</div>`;
+  if(isAdmin&&String(viewAs||'').startsWith('office:'))h+=`<div class="banner info">You're using the app as ${esc(personName(viewAs.slice(7)))} with their office access. Anything you do here is saved as them.</div>`;
   if(isAdmin&&viewAs==='office')h+=`<div class="banner info">You're previewing what office staff see. They see employee costs and job profit, but not wages or payroll.</div>`;
   return h;
 }
@@ -1208,7 +1208,7 @@ function settingsPage(){
   </form>`;
 }
 function timeOffice(){
-  const self=canSelfClock();const pidSelf=selfClockPid();const prevOnly=!!officePersonPreview();
+  const self=canSelfClock();const pidSelf=selfClockPid();const prevOnly=!!officePersonPreview()&&!isAdmin;
   const tabs=self?`<div class="tabs" role="tablist" data-feat="office-self-clock"><button class="tab" role="tab" data-act="otab" data-v="crew" aria-selected="${UI.otab!=='mine'}">Timesheets</button><button class="tab" role="tab" data-act="otab" data-v="mine" aria-selected="${UI.otab==='mine'}">My time</button></div>`:'';
   if(self&&UI.otab==='mine'){
     const pid=pidSelf,wk=UI.tcWeek;const list=weekPunches(pid,wk);const tot=list.reduce((a,p)=>a+punchMs(p),0);
