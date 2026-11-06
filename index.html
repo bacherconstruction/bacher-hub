@@ -424,7 +424,7 @@ let customersLoaded=false, customersLoading=null, customersRemoteQ=null;
 const UI={jobFilter:'Active',jobSearch:'',quoteFilter:'Open',week:weekKey(new Date()),tcWeek:weekKey(new Date()),schedMode:'people',tab:'sheets',clockJob:'',clockFor:null,clockAct:'operate',clockEquip:'',clockExtra:'',clockFloatEq:'',clockFloatTo:'',clockSub:'General',clockPit:'mcclintock',ftab:'mine',otab:'crew',stab:'general',pitTab:'tickets',pitDay:today(),dailyWk:weekKey(new Date()),dailyJob:'',safeTab:'checks',safeWk:weekKey(new Date()),docJob:'',docCat:'All',lastTicket:null,fuelTab:'overview',homeCat:'all',fleetQ:'',fleetType:'',fleetSort:'unit',empPer:'month',empDay:today(),empSort:'profit',pump:'',dispView:'day',dispWk:weekKey(new Date()),woFilter:'Open',fleetTab:'units',custSearch:'',invFilter:'Unpaid',fuelWk:weekKey(new Date()),dailyTab:'reports',qtab:'quotes',invtTab:'stock',invtWk:weekKey(new Date()),dispDay:today(),payWk:addDays(weekKey(new Date()),-7),payWeeks:2,pitLocF:'all'};
 const STATUSES=['Upcoming','Active','On hold','Complete'];
 const UNITS=['ea','hr','day','load','ls','t','m','lm','ft','yd','m²','sq ft','sq yd','acre','m³','yd³','ft³'];
-const ACTS={operate:'Operating',drive:'Trucking',survey:'Surveying',travel:'Travel',labour:'Labour',landscape:'Landscaping',yard:'Yard',pit:'Pit',shop:'Mechanic',office:'Office'};
+const ACTS={operate:'Operating',drive:'Trucking',survey:'Surveying',travel:'Travel',labour:'Labour',landscape:'Landscaping',yard:'Yard',pit:'Pit',shop:'Shop',office:'Office'};
 const PITS={mcclintock:'McClintock Pit',yogi:'Yogi Pit'};
 const yardOpts=()=>{const l=(S.pitcfg.config||{}).yardWork;return Array.isArray(l)&&l.length?(l.includes(COLLECT)?l:[...l,COLLECT]):['General','Stone saw',COLLECT]};
 const COLLECT='Collecting materials';
@@ -801,7 +801,7 @@ function navGroups(field){
     {key:'stoneyard',label:'Stone yard',pages:[['stoneshop','Stone yard']]},
     {key:'safety',label:'Safety',pages:[['safety','Safety']]},
     {key:'settings',label:'Settings',pages:[['settings','Settings']]}];
-  if(field){const sc=(S.people[pid]||{}).screens;if(sc&&typeof sc==='object')g=g.filter(x=>x.key==='home'||x.key==='time'||sc[x.key])}
+  if(field)g=g.filter(x=>x.key==='home'||x.key==='time'||screenOn(pid,x.key,defaultScreen(pid,x.key)))
   return g.map(x=>({...x,pages:x.pages.filter(([pg])=>ok(pg))})).filter(x=>x.pages.length);
 }
 function navItems(field){return navGroups(field).map(x=>[x.pages[0][0],x.label,x.key])}
@@ -1312,7 +1312,7 @@ function personForm(id){
   <p class="muted" style="margin:-4px 0 10px">Bill rate is what the customer is charged for this person's hours. Leave it empty if their time is included in a truck rate.</p>
   <div class="lbl" style="margin-bottom:6px">Clock-in options</div><div class="pickgrid" style="margin:0 0 6px;grid-template-columns:repeat(auto-fill,minmax(170px,1fr))">${Object.entries(ACTS).map(([k,l])=>{const on=(Array.isArray(p.clockActs)?p.clockActs:(!id&&p.role==='office'?['office']:defaultClockActs(id||''))).includes(k);return `<label class="check eqrow"><input type="checkbox" name="clockActs" value="${k}"${on?' checked':''}> ${l}</label>`}).join('')}</div>
   <p class="muted" style="margin:0 0 10px">What this person can pick on the timeclock. Office staff usually only need Office. Field crew keep the options that match their roles unless you change them here.</p>
-  <div class="lbl" style="margin-bottom:6px">Screens in their app</div><div class="pickgrid" style="margin:0 0 6px;grid-template-columns:repeat(auto-fill,minmax(150px,1fr))">${FIELD_SCREENS.map(([k,l])=>`<label class="check eqrow"><input type="checkbox" name="screens" value="${k}"${(id?screenOn(id,k,true):true)?' checked':''}> ${l}</label>`).join('')}</div><p class="muted" style="margin:0 0 10px">Home and TimeClock always show. Untick what this person doesn\'t need so their app stays simple.</p>
+  <div class="lbl" style="margin-bottom:6px">Screens in their app</div><div class="pickgrid" style="margin:0 0 6px;grid-template-columns:repeat(auto-fill,minmax(150px,1fr))">${FIELD_SCREENS.map(([k,l])=>`<label class="check eqrow"><input type="checkbox" name="screens" value="${k}"${(id?screenOn(id,k,defaultScreen(id,k)):true)?' checked':''}> ${l}</label>`).join('')}</div><p class="muted" style="margin:0 0 10px">Home and TimeClock always show. Untick what this person doesn\'t need so their app stays simple.</p>
   <div class="lbl" style="margin-bottom:6px">Roles</div><div class="pickgrid" style="margin:0 0 6px;grid-template-columns:repeat(auto-fill,minmax(170px,1fr))">${Object.entries(ROLES).map(([k,l])=>`<label class="check eqrow"><input type="checkbox" name="roles" value="${k}"${(id?rolesOf(id):new Set()).has(k)?' checked':''}> ${l}</label>`).join('')}</div>
   <p class="muted" style="margin:0 0 10px">Roles still control foreman tools, pit tickets, fleet, dispatch and so on. Clock-in options above decide the timeclock buttons.</p>
   <label class="check" style="margin-top:8px"><input type="checkbox" name="active"${p.active!==false?' checked':''}> Active (shows on the schedule and timeclock)</label>
@@ -2115,8 +2115,8 @@ Object.assign(FORMS,{
 });
 
 /* ================= Roles, locations, loads, dispatch, photos, payroll ================= */
-const ROLES={operator:'Operator',driver:'Driver',labourer:'Labourer',landscaper:'Landscaper',mechanic:'Mechanic',foreman:'Foreman',pit:'Pit / scale house',dispatcher:'Dispatcher',surveyor:'Surveyor',stoneshop:'Stone saw / Stone yard'};
-const ROLE_TASKS={operator:['operate'],driver:['drive'],labourer:['labour'],landscaper:['landscape'],mechanic:['shop'],foreman:['labour'],pit:['pit','operate'],dispatcher:[],surveyor:['survey'],stoneshop:['yard']};
+const ROLES={operator:'Operator',driver:'Driver',labourer:'Labourer',landscaper:'Landscaper',mechanic:'Mechanic',foreman:'Foreman',pit:'Pit / scale house',dispatcher:'Dispatcher',surveyor:'Surveyor',stoneshop:'Stone saw / Stone yard',welder:'Welder / Fabricator'};
+const ROLE_TASKS={operator:['operate'],driver:['drive'],labourer:['labour'],landscaper:['landscape'],mechanic:['shop'],foreman:['labour'],pit:['pit','operate'],dispatcher:[],surveyor:['survey'],stoneshop:['yard'],welder:['shop']};
 const LOCS={yard:'Yard',mcclintock:'McClintock Pit',yogi:'Yogi Pit'};
 const locName=k=>LOCS[k]||k||'';
 function rolesOf(pid){const p=S.people[pid]||{};const r=new Set(p.roles||[]);if(p.foreman)r.add('foreman');if(p.pit)r.add('pit');return r}
@@ -2423,7 +2423,7 @@ FORMS.switchtask=async(fd,f)=>{
 /* ---------- work orders (mechanics) ---------- */
 const WO_KINDS=['Repair','Scheduled service','Inspection','Tires or tracks','Other'];
 const WO_STATUS=['Open','Waiting on parts','Completed'];
-const isMechanic=pid=>hasRole(pid,'mechanic');
+const isMechanic=pid=>hasRole(pid,'mechanic')||hasRole(pid,'welder');
 const allWOs=()=>Object.entries(S.workorders).map(([id,w])=>({id,...w})).filter(w=>!w.deleted).sort((a,b)=>(b.number||0)-(a.number||0));
 const oosOf=eid=>{const o=(S.fleet[eid]||{}).oos;return o&&o.on?o:null};
 const unitDown=eid=>!!oosOf(eid)||openMajor(eid)||allWOs().some(w=>w.equipId===eid&&w.status!=='Completed'&&w.down);
@@ -2870,6 +2870,9 @@ function jobStockHtml(id,field){const g=jobStock(id);const rows=Object.entries(g
 const STONE_CATS=['Rock treads','Flagstone','Walkway flagstone','Stepping stones','Armour and building stone'];
 const isStone=pid=>hasRole(pid,'stoneshop');
 const FIELD_SCREENS=[['jobs','Jobs'],['schedule','Schedule'],['hauling','Hauling'],['shop','Shop'],['stoneyard','Stone yard'],['safety','Safety']];
+const YARD_ROLES=['mechanic','stoneshop','welder'];
+const yardOnly=pid=>{const r=[...rolesOf(pid)];return r.length>0&&r.every(x=>YARD_ROLES.includes(x))};
+const defaultScreen=(pid,k)=>k==='schedule'?!yardOnly(pid):true;
 const screenOn=(pid,k,dflt)=>{const sc=(S.people[pid]||{}).screens;return sc&&typeof sc==='object'?!!sc[k]:dflt};
 const itemMade=id=>!!(stockCat()[id]||{}).made;
 const matIsStone=id=>{const m=(pitCfg().materials||{})[id]||{};return STONE_CATS.includes(m.cat||'')||!!m.made};
