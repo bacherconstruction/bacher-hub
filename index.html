@@ -442,7 +442,7 @@ const isPreview=()=>!!(isOffice&&fieldPreview());
 const asField=()=>!isOffice||!!fieldPreview();
 const myId=()=>fieldPreview()||meId;
 /* Blocks field Viewing-as and office:<person> Viewing-as (clock + put/patch/remove). Generic viewAs=office is not blocked. */
-const previewBlock=()=>{if(!isPreview()&&!officePersonPreview())return false;toast('Preview only — switch Viewing as back to yourself to make real changes.');return true};
+const previewBlock=()=>{if(isAdmin)return false;if(!isPreview()&&!officePersonPreview())return false;toast('Preview only — switch Viewing as back to yourself to make real changes.');return true};
 /* office-self-clock: own meId, or office:<pid> preview of that person's clock (read-only) */
 const selfClockPid=()=>{const op=officePersonPreview();if(op)return op;if(isOffice&&meId&&!viewAs&&S.people[meId])return meId;return null};
 const canSelfClock=()=>!!selfClockPid();
@@ -819,7 +819,7 @@ function topbarHtml(){return `<div class="brand"><span class="mark">B</span>Bach
 function banner(field){
   let h='';
   if(mode==='local')h+=`<div class="banner">Sample data. Add your Supabase URL and key at the top of index.html to use real company data.</div>`;
-  if(isOffice&&fieldPreview())h+=`<div class="banner info">You're previewing the field view as ${esc(personName(viewAs))}. Preview only — clocking in, edits and uploads are blocked.</div>`;
+  if(isOffice&&fieldPreview())h+=isAdmin?`<div class="banner info">You're using the app as ${esc(personName(viewAs))}. Anything you do here is saved as them.</div>`:`<div class="banner info">You're previewing the field view as ${esc(personName(viewAs))}. Preview only — clocking in, edits and uploads are blocked.</div>`;
   if(isAdmin&&String(viewAs||'').startsWith('office:'))h+=`<div class="banner info">You're previewing what ${esc(personName(viewAs.slice(7)))} sees with their office access.</div>`;
   if(isAdmin&&viewAs==='office')h+=`<div class="banner info">You're previewing what office staff see. They see employee costs and job profit, but not wages or payroll.</div>`;
   return h;
