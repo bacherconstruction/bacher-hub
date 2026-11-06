@@ -388,7 +388,7 @@ const firstName=n=>String(n||'').trim().split(/\s+/)[0]||'there';
 const mapLink=a=>a?`<a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(a)}" target="_blank" rel="noopener">Directions</a>`:'';
 function jobHue(id){let h=0;for(const c of String(id))h=(h*31+c.charCodeAt(0))%360;return h}
 const jc=id=>`--jc:hsl(${jobHue(id)} 55% 48%)`;
-const IC={
+const IC={stone:'<path d="M3 20h18"/><path d="M4 20v-4h6v4"/><path d="M10 16v-4h6v4"/><path d="M16 12V8h4v12"/>',
   pit:'<path d="M2 20h20L15 8l-3 4-2-3z"/><path d="M6 20l3-5"/>',
   fleet:'<path d="M2 7h12v9H2z"/><path d="M14 10h4l3 3v3h-7"/><circle cx="6" cy="18" r="2"/><circle cx="17" cy="18" r="2"/>',
   daily:'<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V3h6v1M9 10h6M9 14h6M9 18h3"/>',
@@ -777,7 +777,7 @@ function draw(){
   stackTables(main);
   if(fid){const el=document.getElementById(fid);if(el){el.focus();try{if(ss!=null)el.setSelectionRange(ss,se)}catch(e){}}}
 }
-const PAGE_GROUP={home:'home',jobs:'jobs',job:'jobs',daily:'jobs',docs:'jobs',schedule:'schedule',time:'time',employees:'time',payroll:'time',dispatch:'hauling',pit:'hauling',quotes:'sales',quote:'sales',invoices:'sales',inv:'sales',customers:'sales',cust:'sales',fleet:'shop',unit:'shop',wo:'shop',fuel:'shop',inventory:'shop',stoneshop:'shop',safety:'safety',settings:'settings'};
+const PAGE_GROUP={home:'home',jobs:'jobs',job:'jobs',daily:'jobs',docs:'jobs',schedule:'schedule',time:'time',employees:'time',payroll:'time',dispatch:'hauling',pit:'hauling',quotes:'sales',quote:'sales',invoices:'sales',inv:'sales',customers:'sales',cust:'sales',fleet:'shop',unit:'shop',wo:'shop',fuel:'shop',inventory:'shop',stoneshop:'stoneyard',safety:'safety',settings:'settings'};
 function navGroups(field){
   const pid=myId();const ok=(pg)=>field?true:!(PAGE_PERM[pg]&&!can(PAGE_PERM[pg]));
   let g;
@@ -787,7 +787,8 @@ function navGroups(field){
     {key:'hauling',label:'Hauling',pages:[...(isDriver(pid)||hasRole(pid,'dispatcher')||isForeman(pid)?[['dispatch','Dispatch']]:[]),...(isPit(pid)||isDriver(pid)?[['pit','Pit']]:[])]},
     {key:'jobs',label:'Jobs',pages:[['jobs','Jobs'],...(isForeman(pid)?[['daily','Daily reports']]:[]),['docs','Documents']]},
     {key:'schedule',label:'Schedule',pages:[['schedule','Schedule']]},
-    {key:'shop',label:'Shop',pages:[...(isMechanic(pid)?[['fleet','Fleet'],['wo','Work orders']]:[]),...(isStone(pid)?[['stoneshop','Stone shop']]:[])]},
+    {key:'shop',label:'Shop',pages:isMechanic(pid)?[['fleet','Fleet'],['wo','Work orders']]:[]},
+    {key:'stoneyard',label:'Stone yard',pages:(isStone(pid)||screenOn(pid,'stoneyard',false))?[['stoneshop','Stone yard']]:[]},
     {key:'safety',label:'Safety',pages:[['safety','Safety']]}];
   else g=[
     {key:'home',label:'Home',pages:[['home','Home']]},
@@ -796,13 +797,15 @@ function navGroups(field){
     {key:'time',label:'Time',pages:[['time','TimeClock'],['employees','Employees'],...(seeWages()?[['payroll','Payroll']]:[])]},
     {key:'hauling',label:'Hauling',pages:[['dispatch','Dispatch'],['pit','Pit']]},
     {key:'sales',label:'Sales',pages:[['quotes','Quotes'],['invoices','Invoices'],['customers','Customers']]},
-    {key:'shop',label:'Shop',pages:[['fleet','Fleet'],['fuel','Fuel'],['inventory','Inventory'],['stoneshop','Stone shop']]},
+    {key:'shop',label:'Shop',pages:[['fleet','Fleet'],['fuel','Fuel'],['inventory','Inventory']]},
+    {key:'stoneyard',label:'Stone yard',pages:[['stoneshop','Stone yard']]},
     {key:'safety',label:'Safety',pages:[['safety','Safety']]},
     {key:'settings',label:'Settings',pages:[['settings','Settings']]}];
+  if(field){const sc=(S.people[pid]||{}).screens;if(sc&&typeof sc==='object')g=g.filter(x=>x.key==='home'||x.key==='time'||sc[x.key])}
   return g.map(x=>({...x,pages:x.pages.filter(([pg])=>ok(pg))})).filter(x=>x.pages.length);
 }
 function navItems(field){return navGroups(field).map(x=>[x.pages[0][0],x.label,x.key])}
-const NAV_ICON={home:'home',jobs:'jobs',schedule:'schedule',time:'time',hauling:'dispatch',sales:'quotes',shop:'fleet',safety:'safety',settings:'settings'};
+const NAV_ICON={home:'home',jobs:'jobs',schedule:'schedule',time:'time',hauling:'dispatch',sales:'quotes',shop:'fleet',stoneyard:'stone',safety:'safety',settings:'settings'};
 function hubTabs(page,field){const grp=PAGE_GROUP[page];const g=navGroups(field).find(x=>x.key===grp);if(!g||g.pages.length<2)return '';const curPg={job:'jobs',quote:'quotes',inv:'invoices',cust:'customers',unit:'fleet'}[page]||page;return `<div class="hubtabs">${g.pages.map(([pg,l])=>`<a class="hubtab" href="#${pg}"${curPg===pg?' aria-current="page"':''}>${l}</a>`).join('')}</div>`}
 function navHtml(r,field){
   const items=navItems(field);
@@ -841,7 +844,7 @@ function pageHtml(r,field){
   if(p==='fuel'&&!field)return fuelPage();
   if(p==='employees'&&!field)return empPage();
   if(p==='inventory'&&!field)return invtPage();
-  if(p==='stoneshop'&&(!field||isStone(myId())))return field&&!myId()?claimScreen():stoneShopPage(field);
+  if(p==='stoneshop'&&(!field||isStone(myId())||screenOn(myId(),'stoneyard',false)))return field&&!myId()?claimScreen():stoneShopPage(field);
   if(p==='wo'&&(!field||isMechanic(myId())))return field&&!myId()?claimScreen():woPage(field);
   if(p==='unit'&&(!field||isMechanic(myId())))return unitPage(r.id);
   if(p==='daily'&&(!field||isForeman(myId())))return dailyPage(field);
@@ -1309,6 +1312,7 @@ function personForm(id){
   <p class="muted" style="margin:-4px 0 10px">Bill rate is what the customer is charged for this person's hours. Leave it empty if their time is included in a truck rate.</p>
   <div class="lbl" style="margin-bottom:6px">Clock-in options</div><div class="pickgrid" style="margin:0 0 6px;grid-template-columns:repeat(auto-fill,minmax(170px,1fr))">${Object.entries(ACTS).map(([k,l])=>{const on=(Array.isArray(p.clockActs)?p.clockActs:(!id&&p.role==='office'?['office']:defaultClockActs(id||''))).includes(k);return `<label class="check eqrow"><input type="checkbox" name="clockActs" value="${k}"${on?' checked':''}> ${l}</label>`}).join('')}</div>
   <p class="muted" style="margin:0 0 10px">What this person can pick on the timeclock. Office staff usually only need Office. Field crew keep the options that match their roles unless you change them here.</p>
+  <div class="lbl" style="margin-bottom:6px">Screens in their app</div><div class="pickgrid" style="margin:0 0 6px;grid-template-columns:repeat(auto-fill,minmax(150px,1fr))">${FIELD_SCREENS.map(([k,l])=>`<label class="check eqrow"><input type="checkbox" name="screens" value="${k}"${(id?screenOn(id,k,true):true)?' checked':''}> ${l}</label>`).join('')}</div><p class="muted" style="margin:0 0 10px">Home and TimeClock always show. Untick what this person doesn\'t need so their app stays simple.</p>
   <div class="lbl" style="margin-bottom:6px">Roles</div><div class="pickgrid" style="margin:0 0 6px;grid-template-columns:repeat(auto-fill,minmax(170px,1fr))">${Object.entries(ROLES).map(([k,l])=>`<label class="check eqrow"><input type="checkbox" name="roles" value="${k}"${(id?rolesOf(id):new Set()).has(k)?' checked':''}> ${l}</label>`).join('')}</div>
   <p class="muted" style="margin:0 0 10px">Roles still control foreman tools, pit tickets, fleet, dispatch and so on. Clock-in options above decide the timeclock buttons.</p>
   <label class="check" style="margin-top:8px"><input type="checkbox" name="active"${p.active!==false?' checked':''}> Active (shows on the schedule and timeclock)</label>
@@ -1479,7 +1483,7 @@ const FORMS={
     const name=fd.get('name').trim();if(!name)return formErr('Add their name.');
     const id=f.dataset.id||newId();
     const clockActs=fd.getAll('clockActs').filter(k=>ACTS[k]);if(!clockActs.length)return formErr('Pick at least one clock-in option.');
-    const ok=await put('people',id,{...(S.people[id]||{}),name,role:fd.get('role'),trade:fd.get('trade').trim(),phone:fd.get('phone').trim(),email:(fd.get('email')||'').trim(),roles:fd.getAll('roles'),foreman:fd.getAll('roles').includes('foreman'),pit:fd.getAll('roles').includes('pit'),clockActs,active:fd.get('active')==='on'});
+    const ok=await put('people',id,{...(S.people[id]||{}),name,role:fd.get('role'),trade:fd.get('trade').trim(),phone:fd.get('phone').trim(),email:(fd.get('email')||'').trim(),roles:fd.getAll('roles'),foreman:fd.getAll('roles').includes('foreman'),pit:fd.getAll('roles').includes('pit'),clockActs,active:fd.get('active')==='on',screens:Object.fromEntries(FIELD_SCREENS.map(([k])=>[k,fd.getAll('screens').includes(k)]))});
     if(!ok)return;const from=fd.get('from')||today();const changed=(old,vals)=>Object.keys(vals).some(k=>String((histAt(old,from)||{})[k]??'')!==String(vals[k]??''));
     if(can('money')){const bl=fd.get('bill');const bv={rate:bl===''?0:+bl};if(changed(S.billrates[id],bv))await put('billrates',id,withHistory(S.billrates[id],bv,from));const ec=fd.get('empcost'),el=fd.get('emplcost');const cv={cost:ec===''||ec==null?0:+ec,land:el===''||el==null?0:+el};if(changed(S.empcost[id],cv))await put('empcost',id,withHistory(S.empcost[id],cv,from))}
     if(seeWages()){const r=fd.get('rate'),l=fd.get('land');const wv={rate:r===''?0:+r,land:l===''?0:+l};if(changed(S.rates[id],wv))await put('rates',id,withHistory(S.rates[id],wv,from))}
@@ -2865,6 +2869,8 @@ function jobStockHtml(id,field){const g=jobStock(id);const rows=Object.entries(g
 /* ---------- MATERIALS NEEDED + STONE SHOP ---------- */
 const STONE_CATS=['Rock treads','Flagstone','Walkway flagstone','Stepping stones','Armour and building stone'];
 const isStone=pid=>hasRole(pid,'stoneshop');
+const FIELD_SCREENS=[['jobs','Jobs'],['schedule','Schedule'],['hauling','Hauling'],['shop','Shop'],['stoneyard','Stone yard'],['safety','Safety']];
+const screenOn=(pid,k,dflt)=>{const sc=(S.people[pid]||{}).screens;return sc&&typeof sc==='object'?!!sc[k]:dflt};
 const itemMade=id=>!!(stockCat()[id]||{}).made;
 const matIsStone=id=>{const m=(pitCfg().materials||{})[id]||{};return STONE_CATS.includes(m.cat||'')||!!m.made};
 const yardMats=()=>materials().filter(m=>m.locs&&m.locs.yard);
@@ -2919,7 +2925,7 @@ function stoneShopPage(field){
   const byProd={};todo.forEach(n=>{const k=n.matId?'m:'+n.matId:n.itemId||('x:'+needName(n));const r=byProd[k]=byProd[k]||{name:needName(n),unit:needUnit(n),left:0,jobs:new Set(),oh:n.itemId?(onHand()[n.itemId]||0):null};r.left+=Math.max(0,n.state.qty-n.state.made);r.jobs.add(n.job.name)});
   const card=n=>{const s=n.state;const left=Math.max(0,s.qty-s.made);const late=n.needBy&&n.needBy<td;return `<li class="${late?'flagged':''}"><div><b>${fh(left)} ${esc(needUnit(n))} ${esc(needName(n))}</b><small>${esc(n.job.name)}${n.job.address?', '+esc(n.job.address):''} · ${n.needBy?(late?'<span class="flag">was due '+fmtDay(n.needBy)+'</span>':'need by '+fmtDay(n.needBy)):'no date yet'}${s.made?` · ${fh(s.made)} of ${fh(s.qty)} made`:''}${n.note?'<br>'+esc(n.note):''}</small></div><div class="row"><button class="btn small primary" data-act="needmade" data-j="${esc(n.jobId)}" data-id="${esc(n.id)}">Log made</button><a class="btn small" href="#job/${esc(n.jobId)}">Job</a></div></li>`};
   const sec=(title,list,empty)=>`<section class="panel" style="margin-bottom:16px"><h2>${title} <span class="muted" style="font-weight:400">· ${fh(pieces(list))} pieces</span></h2>${list.length?`<ul class="list">${list.map(card).join('')}</ul>`:`<p class="empty">${empty}</p>`}</section>`;
-  return `<div class="pagehead"><div><h1>Stone shop</h1><p class="sub">Everything the jobs need cut at the yard: steps, flagstone, armour stone, stepping and walkway stone. Sorted by when it has to be on site.</p></div><div class="row">${needCanEdit()?`<button class="btn primary" data-act="needform" data-j="">Add to the list</button>`:''}</div></div>
+  return `<div class="pagehead"><div><h1>Stone yard</h1><p class="sub">Everything the jobs need cut at the yard: steps, flagstone, armour stone, stepping and walkway stone. Sorted by when it has to be on site.</p></div><div class="row">${needCanEdit()?`<button class="btn primary" data-act="needform" data-j="">Add to the list</button>`:''}</div></div>
   <section class="panel" style="margin-bottom:16px"><div class="figs"><div class="fig"><span>Due this week</span><b${dueWk.length?' class="flag"':''}>${fh(pieces(dueWk))}</b></div><div class="fig"><span>Next 2 weeks</span><b>${fh(pieces(dueTwo))}</b></div><div class="fig"><span>Later / no date</span><b>${fh(pieces(later))}</b></div><div class="fig"><span>Jobs waiting</span><b>${new Set(todo.map(n=>n.jobId)).size}</b></div></div></section>
   ${stoneSawHtml()}${sec('Due this week',dueWk,'Nothing due this week.')}${sec('Next two weeks',dueTwo,'Nothing in the next two weeks.')}${sec('Later or no date yet',later,'Nothing else on the list.')}
   <section class="panel" style="margin-bottom:16px"><h2>What to cut, by product</h2>${Object.keys(byProd).length?`<div class="tablewrap"><table><thead><tr><th>Product</th><th class="num">Still to make</th><th class="num">In stock (yard stock items)</th><th>For</th></tr></thead><tbody>${Object.values(byProd).sort((a,b)=>b.left-a.left).map(r=>`<tr><td><b>${esc(r.name)}</b></td><td class="num">${fh(r.left)} ${esc(r.unit)}</td><td class="num">${r.oh==null?'—':fh(r.oh)+' '+esc(r.unit)}</td><td><small>${[...r.jobs].map(esc).join(', ')}</small></td></tr>`).join('')}</tbody></table></div>`:'<p class="empty">All caught up.</p>'}</section>
