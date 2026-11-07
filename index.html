@@ -424,7 +424,7 @@ let customersLoaded=false, customersLoading=null, customersRemoteQ=null;
 const UI={jobFilter:'Active',jobSearch:'',quoteFilter:'Open',week:weekKey(new Date()),tcWeek:weekKey(new Date()),schedMode:'people',tab:'sheets',clockJob:'',clockFor:null,clockAct:'operate',clockEquip:'',clockExtra:'',clockFloatEq:'',clockFloatTo:'',clockSub:'General',clockPit:'mcclintock',ftab:'mine',otab:'crew',stab:'general',pitTab:'tickets',pitDay:today(),dailyWk:weekKey(new Date()),dailyJob:'',safeTab:'checks',safeWk:weekKey(new Date()),docJob:'',docCat:'All',lastTicket:null,fuelTab:'overview',homeCat:'all',fleetQ:'',fleetType:'',fleetSort:'unit',empPer:'month',empDay:today(),empSort:'profit',pump:'',dispView:'day',dispWk:weekKey(new Date()),woFilter:'Open',fleetTab:'units',custSearch:'',invFilter:'Unpaid',fuelWk:weekKey(new Date()),dailyTab:'reports',qtab:'quotes',invtTab:'stock',invtWk:weekKey(new Date()),dispDay:today(),payWk:addDays(weekKey(new Date()),-7),payWeeks:2,pitLocF:'all'};
 const STATUSES=['Upcoming','Active','On hold','Complete'];
 const UNITS=['ea','hr','day','load','ls','t','m','lm','ft','yd','m²','sq ft','sq yd','acre','m³','yd³','ft³'];
-const ACTS={operate:'Operating',drive:'Trucking',survey:'Surveying',travel:'Travel',labour:'Labour',landscape:'Landscaping',yard:'Yard',pit:'Pit',shop:'Shop',office:'Office'};
+const ACTS={operate:'Operating',drive:'Trucking',survey:'Surveying',travel:'Travel',labour:'Labourer',landscape:'Landscaping',yard:'Yard',stoneyard:'Stone yard',pit:'Pit',shop:'Shop',office:'Office'};
 const PITS={mcclintock:'McClintock Pit',yogi:'Yogi Pit'};
 const yardOpts=()=>{const l=(S.pitcfg.config||{}).yardWork;return Array.isArray(l)&&l.length?(l.includes(COLLECT)?l:[...l,COLLECT]):['General','Stone saw',COLLECT]};
 const COLLECT='Collecting materials';
@@ -732,7 +732,7 @@ const mapPin=l=>l&&l.lat!=null?`https://www.google.com/maps/search/?api=1&query=
 function distKm(a,b){if(!a||!b||a.lat==null||b.lat==null)return null;const R=6371,dLat=(b.lat-a.lat)*Math.PI/180,dLng=(b.lng-a.lng)*Math.PI/180;const x=Math.sin(dLat/2)**2+Math.cos(a.lat*Math.PI/180)*Math.cos(b.lat*Math.PI/180)*Math.sin(dLng/2)**2;return 2*R*Math.asin(Math.sqrt(x))}
 const jobLoc=jid=>{const j=S.jobs[jid];return j&&j.lat!=null&&j.lng!=null&&j.lat!==''?{lat:+j.lat,lng:+j.lng}:null};
 function locNote(l,jid){if(!l)return '';const jl=jobLoc(jid);const d=distKm(l,jl);const far=d!=null&&d>0.5;return `<a href="${mapPin(l)}" target="_blank" rel="noopener" class="${far?'flag':''}">${d==null?'map':d<1?`${Math.round(d*1000)} m from site`:`${d.toFixed(1)} km from site`}</a>`}
-async function clockIn(pid,t){if(previewBlock())return;UI.clockSubSet=false;if((t.act==='drive'||t.act==='travel')&&t.equipId&&annualOverdue(t.equipId))toast(`Vehicle Annual Overdue: ${equipName(t.equipId)}. Park For Repairs.`);if((t.act||'')==='travel')t={...t,jobId:'',extraId:''};
+async function clockIn(pid,t){if(previewBlock())return;if(t&&t.act==='stoneyard')t={...t,act:'yard',sub:'Stone saw',jobId:''};UI.clockSubSet=false;if((t.act==='drive'||t.act==='travel')&&t.equipId&&annualOverdue(t.equipId))toast(`Vehicle Annual Overdue: ${equipName(t.equipId)}. Park For Repairs.`);if((t.act||'')==='travel')t={...t,jobId:'',extraId:''};
   if(openPunch(pid)){toast('Already clocked in.');return}
   if((t.act||'')==='drive'&&t.floatEq){if(!t.floatTo){toast('Pick where you\'re taking the machine.');return}t={...t,jobId:floatBillJob(t.floatEq,t.floatTo),extraId:S.jobs[t.floatTo]?t.extraId:''}}
   const act=t.act||'labour',jobId=act==='office'?'':act==='shop'?(isShopJob(t.jobId)?t.jobId:''):act==='yard'?(t.sub===COLLECT&&t.jobId&&S.jobs[t.jobId]?t.jobId:'loc:yard'):act==='pit'?'loc:'+(t.pit||'mcclintock'):(t.jobId||''),equipId=act==='yard'||act==='office'?'':(t.equipId||'');
@@ -896,9 +896,9 @@ function clockCard(pid){
   return `<section class="clock" aria-label="Timeclock"><div class="state">Off the clock</div>
     ${tks.length>1?`<div><div class="lbl" style="color:var(--nav-mute);margin-bottom:6px">What are you doing?</div><div class="acts" role="group" aria-label="Task">${tks.map(k=>[k,ACTS[k]]).map(([k,l])=>`<button type="button" class="actbtn" data-act="setact" data-p="${esc(pid)}" data-v="${k}" aria-pressed="${a===k}">${l}</button>`).join('')}</div></div>`:`<div class="lbl" style="color:var(--nav-mute);margin-bottom:8px">${esc(ACTS[a]||'Work')}</div>`}
     ${jobFirst?jobSel:''}
-    ${eq}${a==='yard'||a==='pit'?'':unitWarnings(UI.clockEquip,a)}
+    ${eq}${a==='yard'||a==='stoneyard'||a==='pit'?'':unitWarnings(UI.clockEquip,a)}
     ${travelHint}
-    ${a==='shop'||a==='office'||a==='yard'||a==='pit'||a==='travel'||jobFirst||(a==='drive'&&UI.clockFloatEq)?'':jobSel}${a==='drive'&&UI.clockFloatEq&&S.jobs[UI.clockFloatTo]?extraSelect('clk',UI.clockFloatTo,UI.clockExtra,'clockExtra'):''}
+    ${a==='shop'||a==='office'||a==='yard'||a==='stoneyard'||a==='pit'||a==='travel'||jobFirst||(a==='drive'&&UI.clockFloatEq)?'':jobSel}${a==='drive'&&UI.clockFloatEq&&S.jobs[UI.clockFloatTo]?extraSelect('clk',UI.clockFloatTo,UI.clockExtra,'clockExtra'):''}
     <button class="clockbtn" data-act="clockin" data-p="${esc(pid)}">Clock in</button>
     <div class="row" style="gap:8px">${stockItems().length?`<button class="btn onDark" style="flex:1" data-act="takeform" data-j="${esc(cellJobs(pid,today()).find(x=>S.jobs[x])||'')}">Log material</button>`:''}<button class="btn onDark" style="flex:1" data-act="fuelform" data-e="">Log fuel</button></div>
     <div class="wk">${fh(hrs(wkMs))} h this week</div></section>`;
@@ -2118,7 +2118,7 @@ Object.assign(FORMS,{
 
 /* ================= Roles, locations, loads, dispatch, photos, payroll ================= */
 const ROLES={operator:'Operator',driver:'Driver',labourer:'Labourer',landscaper:'Landscaper',mechanic:'Mechanic',foreman:'Foreman',pit:'Pit / scale house',dispatcher:'Dispatcher',surveyor:'Surveyor',stoneshop:'Stone saw / Stone yard',welder:'Welder / Fabricator',yard:'Yard',office:'Office'};
-const ROLE_TASKS={operator:['operate'],driver:['drive'],labourer:['labour'],landscaper:['landscape'],mechanic:['shop'],foreman:['labour'],pit:['pit','operate'],dispatcher:[],surveyor:['survey'],stoneshop:['yard'],welder:['shop'],yard:['yard'],office:['office']};
+const ROLE_TASKS={operator:['operate'],driver:['drive'],labourer:['labour'],landscaper:['landscape'],mechanic:['shop'],foreman:['operate'],pit:['pit','operate'],dispatcher:[],surveyor:['survey'],stoneshop:['stoneyard'],welder:['shop'],yard:['yard'],office:['office']};
 const LOCS={yard:'Yard',mcclintock:'McClintock Pit',yogi:'Yogi Pit'};
 const locName=k=>LOCS[k]||k||'';
 function rolesOf(pid){const p=S.people[pid]||{};const r=new Set(p.roles||[]);if(p.foreman)r.add('foreman');if(p.pit)r.add('pit');return r}
@@ -2371,7 +2371,7 @@ function switchForm(pid,st){
   return `<form data-form="switchtask" data-p="${esc(pid)}"><h2>Switch task or job</h2>
   <p class="sub" style="margin-top:-6px">You stay on the clock. Now: ${esc(taskLine(op))}, since ${fmtTime(op.in)}.</p>
   ${(()=>{const taskF=`<div class="field"><label for="sw-act">New task</label><select id="sw-act" name="act" data-reopen="switch">${tks.map(t=>`<option value="${t}"${t===act?' selected':''}>${ACTS[t]}</option>`).join('')}</select></div>`;
-    const jobF=act==='shop'?(shopJobs().length?`<div class="field"><label for="sw-job">Working for</label><select id="sw-job" name="job">${shopJobOpts(isShopJob(job)?job:'')}</select></div>`:'<input type="hidden" name="job" value="">'):act==='office'||act==='yard'||act==='pit'||act==='travel'||(act==='drive'&&st.floatEq)?'<input type="hidden" name="job" value="">':jobPickerControl(job,{id:'sw-job',name:'job',pid,label:act==='operate'||act==='landscape'?'Job site':'Job or location',activeOnly:true,includeLocs:true,reopen:'switch'});
+    const jobF=act==='shop'?(shopJobs().length?`<div class="field"><label for="sw-job">Working for</label><select id="sw-job" name="job">${shopJobOpts(isShopJob(job)?job:'')}</select></div>`:'<input type="hidden" name="job" value="">'):act==='office'||act==='yard'||act==='stoneyard'||act==='pit'||act==='travel'||(act==='drive'&&st.floatEq)?'<input type="hidden" name="job" value="">':jobPickerControl(job,{id:'sw-job',name:'job',pid,label:act==='operate'||act==='landscape'?'Job site':'Job or location',activeOnly:true,includeLocs:true,reopen:'switch'});
     const travelHint=act==='travel'?`<p class="muted" style="margin:8px 0 0">No destination needed — travel is attributed when you start a job, go to shop/yard/pit, or clock out (Return to shop).</p>`:'';
     return act==='operate'||act==='landscape'?`<div class="row2" style="margin-top:12px">${taskF}${jobF}</div>${eqField}${travelHint}`:`<div class="row2" style="margin-top:12px">${taskF}${eqField}</div>${jobF}${travelHint}`})()}
   ${flt}
@@ -2400,7 +2400,7 @@ ACT.extraswitch=(d)=>{const pid=d.p,op=openPunch(pid);if(!op)return;const ex=ext
   <p class="err" id="formerr"></p><div class="mactions"><button type="button" class="btn" data-act="close">Cancel</button><button class="btn primary">Switch now</button></div></form>`)};
 FORMS.switchtask=async(fd,f)=>{
   const pid=f.dataset.p,op=openPunch(pid);if(!op){closeModal();return}
-  const act=fd.get('act'),equipId=act==='yard'||act==='office'?'':(fd.get('equip')||''),sub=act==='yard'?(fd.get('sub')||'General'):'',jobId=act==='office'||act==='travel'?'':act==='shop'?(isShopJob(fd.get('job'))?fd.get('job'):''):act==='yard'?(sub===COLLECT&&S.jobs[fd.get('cjob')]?fd.get('cjob'):'loc:yard'):act==='pit'?'loc:'+(fd.get('pit')||'mcclintock'):(act==='drive'&&fd.get('floatEq')?floatBillJob(fd.get('floatEq'),fd.get('floatTo')):(fd.get('job')||'')),note=fd.get('note').trim();
+  const rawAct=fd.get('act'),act=rawAct==='stoneyard'?'yard':rawAct,equipId=act==='yard'||act==='office'?'':(fd.get('equip')||''),sub=rawAct==='stoneyard'?'Stone saw':act==='yard'?(fd.get('sub')||'General'):'',jobId=act==='office'||act==='travel'?'':act==='shop'?(isShopJob(fd.get('job'))?fd.get('job'):''):act==='yard'?(sub===COLLECT&&S.jobs[fd.get('cjob')]?fd.get('cjob'):'loc:yard'):act==='pit'?'loc:'+(fd.get('pit')||'mcclintock'):(act==='drive'&&fd.get('floatEq')?floatBillJob(fd.get('floatEq'),fd.get('floatTo')):(fd.get('job')||'')),note=fd.get('note').trim();
   if(act==='yard'&&sub===COLLECT&&!S.jobs[jobId])return formErr('Pick which job the materials are for.');
   if(act==='operate'&&!equipId)return formErr('Pick the machine.');if(act==='drive'&&!equipId)return formErr('Pick the truck.');
   if(act!=='travel'&&['operate','labour','landscape','survey','drive'].includes(act)&&!jobId&&!(act==='drive'&&fd.get('floatEq')))return formErr('Pick a job or location.');
