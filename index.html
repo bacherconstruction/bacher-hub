@@ -461,7 +461,7 @@ const rawCell=(pid,date)=>{const w=S.sched[weekKey(fromYmd(date))];return (w&&w.
 const cellJobs=(pid,date)=>{const v=rawCell(pid,date);return Array.isArray(v)?v.filter(Boolean):(v&&v!=='off'?[v]:[])};
 const cellOf=(pid,date)=>{const v=rawCell(pid,date);return v==='off'?'off':(cellJobs(pid,date)[0]||'')};
 const crewFor=(jid,date)=>activePeople().filter(([pid])=>cellJobs(pid,date).includes(jid)).map(([pid])=>pid);
-function allPunches(){const out=[];for(const [docId,d] of Object.entries(S.time)){if(!d||!d.punches)continue;for(const [id,p] of Object.entries(d.punches)){if(!p||p.void||!p.in)continue;out.push({...p,id,docId,personId:d.personId})}}return out.sort((a,b)=>a.in-b.in)}
+function allPunches(){const out=[];for(const [docId,d] of Object.entries(S.time)){if(!d||!d.punches)continue;for(const [id,p] of Object.entries(d.punches)){if(!p||p.void||!p.in)continue;out.push({...p,id,docId,personId:d.personId,...((S.people[d.personId]||{}).noReview?{reviewed:true}:{})})}}return out.sort((a,b)=>a.in-b.in)}
 const punchMs=p=>Math.max(0,(p.out||Date.now())-p.in);
 const openPunch=pid=>allPunches().find(p=>p.personId===pid&&!p.out);
 const weekPunches=(pid,wk)=>allPunches().filter(p=>p.personId===pid&&weekKey(new Date(p.in))===wk);
@@ -1317,7 +1317,7 @@ function personForm(id){
   <div class="lbl" style="margin-bottom:6px">Screens in their app</div><div class="pickgrid" style="margin:0 0 6px;grid-template-columns:repeat(auto-fill,minmax(150px,1fr))">${FIELD_SCREENS.map(([k,l])=>`<label class="check eqrow"><input type="checkbox" name="screens" value="${k}"${(id?screenOn(id,k,defaultScreen(id,k)):true)?' checked':''}> ${l}</label>`).join('')}</div><p class="muted" style="margin:0 0 10px">Home and TimeClock always show. Untick what this person doesn\'t need so their app stays simple.</p>
   <div class="lbl" style="margin-bottom:6px">Roles</div><div class="pickgrid" style="margin:0 0 6px;grid-template-columns:repeat(auto-fill,minmax(170px,1fr))">${Object.entries(ROLES).map(([k,l])=>`<label class="check eqrow"><input type="checkbox" name="roles" value="${k}"${(id?rolesOf(id):new Set()).has(k)?' checked':''}> ${l}</label>`).join('')}</div>
   <p class="muted" style="margin:0 0 10px">Each role adds its timeclock button and the tools that go with it. Anyone with a site role (operator, driver, labourer and so on) also gets Travel and Yard.</p>
-  <label class="check" style="margin-top:8px"><input type="checkbox" name="active"${p.active!==false?' checked':''}> Active (shows on the schedule and timeclock)</label>
+  ${isAdmin&&!viewAs?`<label class="check" style="margin-top:8px"><input type="checkbox" name="noReview"${p.noReview?' checked':''}> Never flag this person's time for review</label>`:''}<label class="check" style="margin-top:8px"><input type="checkbox" name="active"${p.active!==false?' checked':''}> Active (shows on the schedule and timeclock)</label>
   ${seeWages()?'<p class="muted" style="margin:8px 0 0">Only you, as admin, can see wages.</p>':''}
   <p class="err" id="formerr"></p>
   <div class="mactions"><button type="button" class="btn" data-act="close">Cancel</button><button class="btn primary">${id?'Save employee':'Add employee'}</button></div></form>`;
@@ -1485,7 +1485,7 @@ const FORMS={
     const name=fd.get('name').trim();if(!name)return formErr('Add their name.');
     const id=f.dataset.id||newId();
     if(!fd.getAll('roles').length&&fd.get('role')!=='office')return formErr('Pick at least one role.');const clockActs=null;
-    const ok=await put('people',id,{...(S.people[id]||{}),name,role:fd.get('role'),trade:fd.get('trade').trim(),phone:fd.get('phone').trim(),email:(fd.get('email')||'').trim(),roles:fd.getAll('roles'),foreman:fd.getAll('roles').includes('foreman'),pit:fd.getAll('roles').includes('pit'),clockActs,active:fd.get('active')==='on',screens:Object.fromEntries(FIELD_SCREENS.map(([k])=>[k,fd.getAll('screens').includes(k)]))});
+    const ok=await put('people',id,{...(S.people[id]||{}),name,role:fd.get('role'),trade:fd.get('trade').trim(),phone:fd.get('phone').trim(),email:(fd.get('email')||'').trim(),roles:fd.getAll('roles'),foreman:fd.getAll('roles').includes('foreman'),pit:fd.getAll('roles').includes('pit'),clockActs,active:fd.get('active')==='on',screens:Object.fromEntries(FIELD_SCREENS.map(([k])=>[k,fd.getAll('screens').includes(k)])),noReview:isAdmin&&!viewAs?fd.get('noReview')==='on':!!(S.people[id]||{}).noReview});
     if(!ok)return;const from=fd.get('from')||today();const changed=(old,vals)=>Object.keys(vals).some(k=>String((histAt(old,from)||{})[k]??'')!==String(vals[k]??''));
     if(can('money')){const bl=fd.get('bill');const bv={rate:bl===''?0:+bl};if(changed(S.billrates[id],bv))await put('billrates',id,withHistory(S.billrates[id],bv,from));const ec=fd.get('empcost'),el=fd.get('emplcost');const cv={cost:ec===''||ec==null?0:+ec,land:el===''||el==null?0:+el};if(changed(S.empcost[id],cv))await put('empcost',id,withHistory(S.empcost[id],cv,from))}
     if(seeWages()){const r=fd.get('rate'),l=fd.get('land');const wv={rate:r===''?0:+r,land:l===''?0:+l};if(changed(S.rates[id],wv))await put('rates',id,withHistory(S.rates[id],wv,from))}
