@@ -1313,11 +1313,10 @@ function personForm(id){
   <div class="field"><label for="e-land">Landscaping wage per hour</label><input id="e-land" name="land" type="number" step="0.01" min="0" value="${id&&landRate(id)?landRate(id):''}"></div></div>
   <p class="muted" style="margin:0">Landscaping time is paid at the landscaping wage; leave it empty to use the standard wage. Only you can see these.</p></details>`:''}
   <p class="muted" style="margin:-4px 0 10px">Bill rate is what the customer is charged for this person's hours. Leave it empty if their time is included in a truck rate.</p>
-  <div class="lbl" style="margin-bottom:6px">Clock-in options</div><div class="pickgrid" style="margin:0 0 6px;grid-template-columns:repeat(auto-fill,minmax(170px,1fr))">${Object.entries(ACTS).map(([k,l])=>{const on=(Array.isArray(p.clockActs)?p.clockActs:(!id&&p.role==='office'?['office']:defaultClockActs(id||''))).includes(k);return `<label class="check eqrow"><input type="checkbox" name="clockActs" value="${k}"${on?' checked':''}> ${l}</label>`}).join('')}</div>
-  <p class="muted" style="margin:0 0 10px">What this person can pick on the timeclock. Office staff usually only need Office. Field crew keep the options that match their roles unless you change them here.</p>
+  
   <div class="lbl" style="margin-bottom:6px">Screens in their app</div><div class="pickgrid" style="margin:0 0 6px;grid-template-columns:repeat(auto-fill,minmax(150px,1fr))">${FIELD_SCREENS.map(([k,l])=>`<label class="check eqrow"><input type="checkbox" name="screens" value="${k}"${(id?screenOn(id,k,defaultScreen(id,k)):true)?' checked':''}> ${l}</label>`).join('')}</div><p class="muted" style="margin:0 0 10px">Home and TimeClock always show. Untick what this person doesn\'t need so their app stays simple.</p>
   <div class="lbl" style="margin-bottom:6px">Roles</div><div class="pickgrid" style="margin:0 0 6px;grid-template-columns:repeat(auto-fill,minmax(170px,1fr))">${Object.entries(ROLES).map(([k,l])=>`<label class="check eqrow"><input type="checkbox" name="roles" value="${k}"${(id?rolesOf(id):new Set()).has(k)?' checked':''}> ${l}</label>`).join('')}</div>
-  <p class="muted" style="margin:0 0 10px">Roles still control foreman tools, pit tickets, fleet, dispatch and so on. Clock-in options above decide the timeclock buttons.</p>
+  <p class="muted" style="margin:0 0 10px">Each role adds its timeclock button and the tools that go with it. Anyone with a site role (operator, driver, labourer and so on) also gets Travel and Yard.</p>
   <label class="check" style="margin-top:8px"><input type="checkbox" name="active"${p.active!==false?' checked':''}> Active (shows on the schedule and timeclock)</label>
   ${seeWages()?'<p class="muted" style="margin:8px 0 0">Only you, as admin, can see wages.</p>':''}
   <p class="err" id="formerr"></p>
@@ -1485,7 +1484,7 @@ const FORMS={
   person:async(fd,f)=>{
     const name=fd.get('name').trim();if(!name)return formErr('Add their name.');
     const id=f.dataset.id||newId();
-    const clockActs=fd.getAll('clockActs').filter(k=>ACTS[k]);if(!clockActs.length)return formErr('Pick at least one clock-in option.');
+    if(!fd.getAll('roles').length&&fd.get('role')!=='office')return formErr('Pick at least one role.');const clockActs=null;
     const ok=await put('people',id,{...(S.people[id]||{}),name,role:fd.get('role'),trade:fd.get('trade').trim(),phone:fd.get('phone').trim(),email:(fd.get('email')||'').trim(),roles:fd.getAll('roles'),foreman:fd.getAll('roles').includes('foreman'),pit:fd.getAll('roles').includes('pit'),clockActs,active:fd.get('active')==='on',screens:Object.fromEntries(FIELD_SCREENS.map(([k])=>[k,fd.getAll('screens').includes(k)]))});
     if(!ok)return;const from=fd.get('from')||today();const changed=(old,vals)=>Object.keys(vals).some(k=>String((histAt(old,from)||{})[k]??'')!==String(vals[k]??''));
     if(can('money')){const bl=fd.get('bill');const bv={rate:bl===''?0:+bl};if(changed(S.billrates[id],bv))await put('billrates',id,withHistory(S.billrates[id],bv,from));const ec=fd.get('empcost'),el=fd.get('emplcost');const cv={cost:ec===''||ec==null?0:+ec,land:el===''||el==null?0:+el};if(changed(S.empcost[id],cv))await put('empcost',id,withHistory(S.empcost[id],cv,from))}
@@ -2118,14 +2117,14 @@ Object.assign(FORMS,{
 });
 
 /* ================= Roles, locations, loads, dispatch, photos, payroll ================= */
-const ROLES={operator:'Operator',driver:'Driver',labourer:'Labourer',landscaper:'Landscaper',mechanic:'Mechanic',foreman:'Foreman',pit:'Pit / scale house',dispatcher:'Dispatcher',surveyor:'Surveyor',stoneshop:'Stone saw / Stone yard',welder:'Welder / Fabricator'};
-const ROLE_TASKS={operator:['operate'],driver:['drive'],labourer:['labour'],landscaper:['landscape'],mechanic:['shop'],foreman:['labour'],pit:['pit','operate'],dispatcher:[],surveyor:['survey'],stoneshop:['yard'],welder:['shop']};
+const ROLES={operator:'Operator',driver:'Driver',labourer:'Labourer',landscaper:'Landscaper',mechanic:'Mechanic',foreman:'Foreman',pit:'Pit / scale house',dispatcher:'Dispatcher',surveyor:'Surveyor',stoneshop:'Stone saw / Stone yard',welder:'Welder / Fabricator',yard:'Yard',office:'Office'};
+const ROLE_TASKS={operator:['operate'],driver:['drive'],labourer:['labour'],landscaper:['landscape'],mechanic:['shop'],foreman:['labour'],pit:['pit','operate'],dispatcher:[],surveyor:['survey'],stoneshop:['yard'],welder:['shop'],yard:['yard'],office:['office']};
 const LOCS={yard:'Yard',mcclintock:'McClintock Pit',yogi:'Yogi Pit'};
 const locName=k=>LOCS[k]||k||'';
 function rolesOf(pid){const p=S.people[pid]||{};const r=new Set(p.roles||[]);if(p.foreman)r.add('foreman');if(p.pit)r.add('pit');return r}
 const hasRole=(pid,r)=>rolesOf(pid).has(r);
-function defaultClockActs(pid){const p=S.people[pid]||{};const r=rolesOf(pid);const work=[...r].filter(x=>x!=='foreman'||r.size===1);if(!work.length)return p.role==='office'?['office']:Object.keys(ACTS);const t=new Set(['travel','yard']);r.forEach(x=>(ROLE_TASKS[x]||[]).forEach(k=>t.add(k)));return Object.keys(ACTS).filter(k=>t.has(k))}
-function tasksFor(pid){const p=S.people[pid]||{};if(Array.isArray(p.clockActs)){const set=new Set(p.clockActs.filter(k=>ACTS[k]));const list=Object.keys(ACTS).filter(k=>set.has(k));return list.length?list:defaultClockActs(pid)}return defaultClockActs(pid)}
+function defaultClockActs(pid){const p=S.people[pid]||{};const r=rolesOf(pid);const t=new Set();r.forEach(x=>(ROLE_TASKS[x]||[]).forEach(k=>t.add(k)));if([...r].some(x=>!['mechanic','welder','stoneshop','yard','office'].includes(x))){t.add('travel');t.add('yard')}if(p.role==='office')t.add('office');if(!t.size)return p.role==='office'?['office']:Object.keys(ACTS);return Object.keys(ACTS).filter(k=>t.has(k))}
+function tasksFor(pid){return defaultClockActs(pid)}
 const isDriver=pid=>hasRole(pid,'driver');
 
 /* ---------- photos (compressed into the database so field staff can add them) ---------- */
@@ -2922,7 +2921,7 @@ Object.assign(FORMS,{shopjob:async(fd,f)=>{const client=(fd.get('client')||'').t
   if(f.dataset.from==='clock'){render();return}
   openModal(`<h2>Job #${number} created</h2><p>${esc(client)}${unit?' · '+esc(unit):''}. It's ready on the clock: Shop, then <b>A customer's job</b>. Or open a work order on it now.</p><div class="mactions"><button type="button" class="btn" data-act="close">Done</button><button type="button" class="btn primary" data-act="newwo" data-j="${esc(id)}">Work order</button></div>`)}});
 const FIELD_SCREENS=[['jobs','Jobs'],['schedule','Schedule'],['hauling','Hauling'],['shop','Shop'],['stoneyard','Stone yard'],['safety','Safety']];
-const YARD_ROLES=['mechanic','stoneshop','welder'];
+const YARD_ROLES=['mechanic','stoneshop','welder','yard'];
 const yardOnly=pid=>{const r=[...rolesOf(pid)];return r.length>0&&r.every(x=>YARD_ROLES.includes(x))};
 const defaultScreen=(pid,k)=>(k==='schedule'||k==='jobs')?!yardOnly(pid):true;
 const screenOn=(pid,k,dflt)=>{const sc=(S.people[pid]||{}).screens;return sc&&typeof sc==='object'?!!sc[k]:dflt};
