@@ -1,5 +1,5 @@
 // Bacher Hub service worker: keeps the app shell available and updates it in the background.
-const CACHE='bacher-hub-v18';
+const CACHE='bacher-hub-v19';
 const SHELL=['./','./index.html','./manifest.webmanifest','./icons/icon-192.png','./icons/icon-512.png'];
 const LIB='https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js';
 self.addEventListener('install',e=>{e.waitUntil(caches.open(CACHE).then(c=>c.addAll(SHELL).then(()=>fetch(LIB,{mode:'cors'}).then(r=>r.ok&&c.put(LIB,r)).catch(()=>{}))).then(()=>self.skipWaiting()))});
