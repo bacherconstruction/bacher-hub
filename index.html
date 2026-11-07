@@ -2971,6 +2971,18 @@ Object.assign(ACT,{ymedit:(d)=>{UI.ymEdit=d.j+'|'+d.k;render()},ymcancel:()=>{UI
     if(Math.abs(diff)>0.0001){const last=ms[ms.length-1];const sg=last.type==='out'?1:-1;const a=madj[last.id];const base=a.q!=null&&a.q!==''?+a.q:(+last.qty||0);a.q=Math.max(0,rnd2(base+sg*diff))}
     if(await patch('jobfin',jobId,{madj})){UI.ymEdit='';toast('Saved for this job. Yard records unchanged.')}}});
 
+// Time fields: one-tap dropdown in 15-minute steps instead of the browser's time box
+function timeLabel(v){const [h,m]=v.split(':').map(Number);const ap=h<12?'AM':'PM';const hh=h%12||12;return `${hh}:${String(m).padStart(2,'0')} ${ap}`}
+function upgradeTimeInputs(root){(root||document).querySelectorAll('input[type=time]:not([data-tupg])').forEach(inp=>{inp.dataset.tupg='1';const sel=document.createElement('select');
+  [...inp.attributes].forEach(a=>{if(!['type','value','step','min','max','data-tupg'].includes(a.name))sel.setAttribute(a.name,a.value)});sel.disabled=inp.disabled;
+  const cur=inp.value||'';const vals=[];for(let h=0;h<24;h++)for(let m=0;m<60;m+=15)vals.push(String(h).padStart(2,'0')+':'+String(m).padStart(2,'0'));
+  if(cur&&!vals.includes(cur)){vals.push(cur);vals.sort()}
+  sel.innerHTML=(inp.required?'':`<option value="">—</option>`)+(inp.required&&!cur?`<option value="" disabled>Pick a time</option>`:'')+vals.map(v=>`<option value="${v}">${timeLabel(v)}</option>`).join('');
+  sel.value=cur;if(!cur&&inp.required)sel.selectedIndex=0;
+  const proto=Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value');Object.defineProperty(sel,'value',{get(){return proto.get.call(this)},set(v){if(v&&![...this.options].some(o=>o.value===v)){const o=document.createElement('option');o.value=v;o.textContent=timeLabel(v);const after=[...this.options].find(x=>x.value>v);this.insertBefore(o,after||null)}proto.set.call(this,v)}});
+  inp.replaceWith(sel)})}
+new MutationObserver(ms=>{for(const m of ms)for(const n of m.addedNodes)if(n.nodeType===1){if(n.matches&&n.matches('input[type=time]'))upgradeTimeInputs(n.parentElement);else if(n.querySelector&&n.querySelector('input[type=time]'))upgradeTimeInputs(n)}}).observe(document.documentElement,{childList:true,subtree:true});
+document.addEventListener('DOMContentLoaded',()=>upgradeTimeInputs());
 const defaultScreen=(pid,k)=>(k==='schedule'||k==='jobs')?!yardOnly(pid):true;
 const screenOn=(pid,k,dflt)=>{const sc=(S.people[pid]||{}).screens;return sc&&typeof sc==='object'?!!sc[k]:dflt};
 const itemMade=id=>!!(stockCat()[id]||{}).made;
