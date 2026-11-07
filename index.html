@@ -1722,7 +1722,7 @@ function simpleNameForm(kind,id){
 function allChecks(){const out=[];for(const d of Object.values(S.checks)){for(const [id,c] of Object.entries((d&&d.checks)||{}))if(c)out.push({id,docId:d.week,...c})}return out.sort((a,b)=>b.at-a.at)}
 const defectsOf=c=>c.kind==='road'?roadDefects(c).filter(d=>rdOpen(c,d)).map(d=>'d:'+d.id):Object.entries(c.items||{}).filter(([k,v])=>v==='defect'&&!((c.fixed||{})[k])).map(([k])=>k);
 const openDefects=eid=>allChecks().filter(c=>(!eid||c.equipId===eid)).flatMap(c=>defectsOf(c).map(item=>({c,item})));
-const checkResult=c=>{if(c.kind==='road'){const ds=roadDefects(c).filter(d=>rdOpen(c,d));return ds.some(d=>d.sev==='major')?'<span class="pill Overdue">Major defect</span>':ds.length?`<span class="pill On-hold">${ds.length} open defect${ds.length>1?'s':''}</span>`:'<span class="pill Active">No open defects</span>'}const n=defectsOf(c).length,all=Object.values(c.items||{}).filter(v=>v==='defect').length;return c.safe===false&&n?'<span class="pill Overdue">Not safe</span>':n?`<span class="pill On-hold">${n} open defect${n>1?'s':''}</span>`:all?'<span class="pill Active">Defects fixed</span>':'<span class="pill Active">OK</span>'};
+const checkResult=c=>{if(c.kind==='road'){const ds=roadDefects(c).filter(d=>rdOpen(c,d));return ds.some(d=>d.sev==='major')?'<span class="pill Overdue">Major defect</span>':ds.length?`<span class="pill On-hold">${ds.length} open defect${ds.length>1?'s':''}</span>`:'<span class="pill Active">No open defects</span>'}const n=defectsOf(c).length,all=Object.values(c.items||{}).filter(v=>v==='defect').length;return c.safe===false&&n?'<span class="pill Overdue">Not safe</span>':c.sev==='major'&&n?'<span class="pill Overdue">Major defect</span>':n?`<span class="pill On-hold">${n} open defect${n>1?'s':''}</span>`:all?'<span class="pill Active">Defects fixed</span>':'<span class="pill Active">OK</span>'};
 
 /* ---------- FLEET ---------- */
 const fleetDoc=eid=>S.fleet[eid]||{};
@@ -1909,6 +1909,7 @@ function safetyPage(field){
 }
 function checkForm(eid){
   if(eid&&isRoad(eid))return roadForm({truck:isTrailerUnit(eid)?'':eid,trailer:isTrailerUnit(eid)?eid:''});
+  if(!(eid&&isRoad(eid)))return simpleCheckForm(eid);
   const units=equipArr();if(!eid)eid='';const doneToday=eid?allChecks().find(c=>c.date===today()&&c.equipId===eid):null;
   const items=eid?checkItems(eid):[];
   return `<form data-form="check"><h2>Circle check</h2>
@@ -2083,12 +2084,13 @@ Object.assign(FORMS,{
     const n=await savePhotosFrom(f.querySelector('[name=photos]'),`daily:${jobId}:${date}`,{kind:'daily',jobId,date},m=>formErr(m));
     if(n)await patch('daily',dailyDocId(jobId,date),{days:{[date]:{photos:(old.photos||0)+n}}});
     closeModal();toast(`Report saved for ${fmtDay(date)}${n?` with ${n} photo${n>1?'s':''}`:''}`)},
-  check:async(fd,f)=>{const eid=fd.get('equip');if(!eid)return formErr('Pick the unit.');const items={};checkItems(eid).forEach((it,i)=>{items[it]=fd.get('i'+i)||'ok'});
-    const safe=fd.get('safe')!=='no';const nDef=Object.values(items).filter(v=>v==='defect').length;if(nDef&&!fd.get('notes').trim())return formErr('Describe the defects in the notes.');
+  check:async(fd,f)=>{const eid=fd.get('equip');if(!eid)return formErr('Pick the unit.');const items={};let safe=true,nDef=0,sev='';
+    if(f.dataset.simple){if(fd.get('anydef')==='yes'){const lines=(fd.get('notes')||'').split('\n').map(x=>x.trim()).filter(Boolean);if(!lines.length)return formErr('Describe the defect.');sev=fd.get('sev')||'';if(!sev)return formErr('Pick major or minor.');lines.forEach(l=>{items[l+' ('+sev+')']='defect'});nDef=lines.length}}
+    else{checkItems(eid).forEach((it,i)=>{items[it]=fd.get('i'+i)||'ok'});safe=fd.get('safe')!=='no';nDef=Object.values(items).filter(v=>v==='defect').length;if(nDef&&!fd.get('notes').trim())return formErr('Describe the defects in the notes.')}
     const now=Date.now(),wk=weekKey(new Date(now)),m=fd.get('meter');
-    const rec={at:now,date:today(),personId:myId()||'',equipId:eid,meter:m===''?'':+m,items,notes:fd.get('notes').trim(),safe,fixed:{},cat:checkCat(eid)};const cid=newId();
+    const rec={at:now,date:today(),personId:myId()||'',equipId:eid,meter:m===''?'':+m,items,notes:(fd.get('notes')||'').trim(),safe,fixed:{},cat:checkCat(eid),sev,simple:!!f.dataset.simple};const cid=newId();
     const btn=f.querySelector('button.primary');if(btn)btn.disabled=true;
-    if(await patch('checks',wk,{week:wk,checks:{[cid]:rec}})){const n=await savePhotosFrom(f.querySelector('[name=photos]'),'check:'+cid,{kind:'check',equipId:eid},msg=>formErr(msg));if(n)await patch('checks',wk,{checks:{[cid]:{photos:n}}});closeModal();toast(!safe?'Check saved. Unit marked not safe and the office is flagged.':nDef?'Check saved. Defects sent to the office.':'Circle check saved')}},
+    if(await patch('checks',wk,{week:wk,checks:{[cid]:rec}})){const n=await savePhotosFrom(f.querySelector('[name=photos]'),'check:'+cid,{kind:'check',equipId:eid},msg=>formErr(msg));if(n)await patch('checks',wk,{checks:{[cid]:{photos:n}}});closeModal();toast(!safe?'Check saved. Unit marked not safe and the office is flagged.':nDef?(sev==='major'?'Check saved. Major defect sent to the shop.':'Check saved. Defect sent to the shop.'):'Circle check saved')}},
   talk:async(fd,f)=>{const topic=fd.get('topic').trim();if(!topic)return formErr('Add the topic.');const id=f.dataset.id||newId();
     const rec={date:fd.get('date')||today(),jobId:fd.get('job')||'',topic,presenter:fd.get('presenter')||'',attendees:fd.getAll('att'),notes:fd.get('notes').trim(),by:(S.talks[id]||{}).by||myId()||'',at:(S.talks[id]||{}).at||Date.now()};
     if(await put('talks',id,rec)){closeModal();toast('Toolbox talk saved')}},
@@ -2929,6 +2931,22 @@ function foremanReportsCard(pid){const td=today();const set=new Set();cellJobs(p
   return `<section class="panel"><h2>Daily reports</h2>${jobs.length?`<ul class="list compact">${jobs.map(x=>{const done=dailyReport(x,td);return `<li><div><b>${esc(jobName(x))}</b><small>${done?'Saved, you can still change it':'Not written yet'}</small></div><button class="btn small${done?'':' primary'}" data-act="opencloseday" data-j="${esc(x)}" data-d="${td}">${done?'Edit':'Write report'}</button></li>`}).join('')}</ul>`:'<p class="muted" style="margin:0 0 8px">No job today yet. Reports show here for each job you\'re scheduled on or clock into.</p>'}
   ${miss.length?`<div class="lbl" style="margin:12px 0 4px">Still to write</div><ul class="list compact">${miss.slice(0,5).map(([j,d])=>`<li class="flagged"><div><b>${fmtDay(d)}</b>, ${esc(jobName(j))}</div><button class="btn small primary" data-act="opencloseday" data-j="${esc(j)}" data-d="${d}">Write it</button></li>`).join('')}</ul>${miss.length>5?`<p class="muted" style="margin:4px 0 0">${miss.length-5} more older ones.</p>`:''}`:''}
   <div class="row" style="margin-top:10px"><button class="btn small" data-act="opencloseday" data-j="" data-d="${td}">Report on another job or day</button></div></section>`}
+function simpleCheckForm(eid){const units=equipArr();eid=eid||'';const doneToday=eid?allChecks().find(c=>c.date===today()&&c.equipId===eid):null;
+  return `<form data-form="check" data-simple="1"><h2>Circle check</h2>
+  ${doneToday?`<p class="banner info">${esc(equipName(eid))} was checked today by ${esc(personName(doneToday.personId))} at ${fmtTime(doneToday.at)}. Add another if something changed.</p>`:''}
+  <div class="row2"><div class="field"><label for="c-u">Unit</label><select id="c-u" name="equip" data-reopen="check" required><option value="">Pick a unit</option>${units.map(e=>`<option value="${esc(e.id)}"${e.id===eid?' selected':''}>${esc(e.unit)} ${esc(e.desc||'')}</option>`).join('')}</select></div>
+  <div class="field"><label for="c-m">${eid&&isKm(eid)?'Odometer (km)':'Hour meter'}</label><input id="c-m" name="meter" type="number" step="0.1" min="0" inputmode="decimal"></div></div>
+  <div class="lbl" style="margin:4px 0 6px">Before you start</div>
+  <ul class="list compact" style="margin:0 0 14px">${['Check fluids','Grease the machine','Clean the machine and take out the trash','Walk around and look for defects'].map(t=>`<li><span>✓ ${t}</span></li>`).join('')}</ul>
+  <div class="lbl" style="margin-bottom:6px">Any defects?</div>
+  <div class="row" style="margin:0 0 10px;gap:16px"><label class="check"><input type="radio" name="anydef" value="no" data-anydef="1" checked> No, all good</label><label class="check"><input type="radio" name="anydef" value="yes" data-anydef="1"> Yes</label></div>
+  <div id="c-def" hidden>
+  <div class="field"><label for="c-n">What's wrong (one per line)</label><textarea id="c-n" name="notes" placeholder="Hydraulic leak at the boom cylinder"></textarea></div>
+  <div class="lbl" style="margin-bottom:6px">How bad?</div>
+  <div class="row" style="margin:0 0 10px;gap:16px"><label class="check"><input type="radio" name="sev" value="minor"> Minor, keep working</label><label class="check"><input type="radio" name="sev" value="major"> Major, needs the shop</label></div>
+  <div class="field"><label for="c-ph">Photos (optional)</label><input id="c-ph" name="photos" type="file" accept="image/*" capture="environment" multiple></div></div>
+  <p class="err" id="formerr"></p><div class="mactions"><button type="button" class="btn" data-act="close">Cancel</button>${eid?'<button class="btn primary">Done</button>':''}</div></form>`}
+document.addEventListener('change',e=>{if(e.target.dataset.anydef){const d=document.getElementById('c-def');if(d)d.hidden=e.target.value!=='yes'}});
 const defaultScreen=(pid,k)=>(k==='schedule'||k==='jobs')?!yardOnly(pid):true;
 const screenOn=(pid,k,dflt)=>{const sc=(S.people[pid]||{}).screens;return sc&&typeof sc==='object'?!!sc[k]:dflt};
 const itemMade=id=>!!(stockCat()[id]||{}).made;
