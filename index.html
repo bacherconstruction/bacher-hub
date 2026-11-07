@@ -1074,7 +1074,7 @@ function weekNav(key,label){
   return `<div class="row"><button class="btn small" data-act="wk" data-k="${key}" data-v="-7" aria-label="Previous week">‹</button><button class="btn small" data-act="wk" data-k="${key}" data-v="0"${wk===cur?' disabled':''}>This week</button><button class="btn small" data-act="wk" data-k="${key}" data-v="7" aria-label="Next week">›</button><b style="margin-left:6px">${label||'Week of'} ${fmtDate(wk)}</b></div>`;
 }
 function schedOffice(){
-  const wk=UI.week,days=weekDays(wk),td=today(),ppl=activePeople();
+  const wk=UI.week,days=weekDays(wk),td=today(),ppl=activePeople().filter(([pid])=>!offSchedule(pid)||weekDays(wk).some(d=>cellJobs(pid,d).length));
   let body;
   if(!ppl.length)body=`<div class="panel"><p class="empty">Add employees first, then assign them to jobs here. <a href="#settings" data-act="gotab" data-tab="people">Add employees</a></p></div>`;
   else if(UI.schedMode==='people'){
@@ -1105,7 +1105,7 @@ function schedField(){
 }
 function cellModal(pid,date){
   const cur=new Set(cellJobs(pid,date)),off=rawCell(pid,date)==='off';
-  const jobs=workableJobs();[...cur].forEach(x=>{if(S.jobs[x]&&!jobs.find(j=>j.id===x))jobs.push({id:x,...S.jobs[x]})});
+  const jobs=workableJobs().filter(j=>!j.shopWork);[...cur].forEach(x=>{if(S.jobs[x]&&!jobs.find(j=>j.id===x))jobs.push({id:x,...S.jobs[x]})});
   return `<form data-form="cell" data-p="${esc(pid)}" data-d="${date}"><h2>${esc(personName(pid))}</h2><p class="sub" style="margin-top:-6px">${fromYmd(date).toLocaleDateString('en-CA',{weekday:'long',month:'long',day:'numeric'})}</p>
   <div class="lbl" style="margin:14px 0 6px">Jobs for this day (pick one or more)</div>
   <div class="eqgrid">${jobs.map(j=>`<label class="eqrow check" style="${jc(j.id)};border-left:5px solid var(--jc)"><input type="checkbox" name="jobs" value="${esc(j.id)}"${cur.has(j.id)?' checked':''}> <b>#${esc(j.number)} ${esc(j.name)}</b></label>`).join('')||'<p class="empty">No active or upcoming jobs. Add a job first.</p>'}</div>
@@ -2924,6 +2924,7 @@ Object.assign(FORMS,{shopjob:async(fd,f)=>{const client=(fd.get('client')||'').t
 const FIELD_SCREENS=[['jobs','Jobs'],['schedule','Schedule'],['hauling','Hauling'],['shop','Shop'],['stoneyard','Stone yard'],['safety','Safety']];
 const YARD_ROLES=['mechanic','stoneshop','welder','yard'];
 const yardOnly=pid=>{const r=[...rolesOf(pid)];return r.length>0&&r.every(x=>YARD_ROLES.includes(x))};
+const offSchedule=pid=>{const p=S.people[pid]||{};const site=[...rolesOf(pid)].filter(x=>!['mechanic','welder','stoneshop','yard','office'].includes(x));return !site.length&&(yardOnly(pid)||p.role==='office')};
 const defaultScreen=(pid,k)=>(k==='schedule'||k==='jobs')?!yardOnly(pid):true;
 const screenOn=(pid,k,dflt)=>{const sc=(S.people[pid]||{}).screens;return sc&&typeof sc==='object'?!!sc[k]:dflt};
 const itemMade=id=>!!(stockCat()[id]||{}).made;
@@ -3980,7 +3981,7 @@ function unbilledSummaryRaw(jobId){const ch=unbilledCharges(jobId);const s={amt:
 
 /* ==================== HOME PAGES ==================== */
 const isOfficePerson=pid=>((S.people[pid]||{}).role)==='office';
-const fieldPeople=()=>activePeople().filter(([pid])=>!isOfficePerson(pid));
+const fieldPeople=()=>activePeople().filter(([pid])=>!isOfficePerson(pid)&&!offSchedule(pid));
 const punchesOn=date=>allPunches().filter(p=>pDate(p)===date);
 const jobsOn=date=>{const set=new Set();activePeople().forEach(([pid])=>cellJobs(pid,date).forEach(j=>{if(S.jobs[j])set.add(j)}));punchesOn(date).forEach(p=>{if(S.jobs[p.jobId])set.add(p.jobId)});equipDays((j,d)=>d===date).forEach(r=>{if(S.jobs[r.jobId])set.add(r.jobId)});return [...set].sort((a,b)=>(S.jobs[a].number||0)-(S.jobs[b].number||0))};
 const gapsOn=date=>fieldPeople().filter(([pid])=>rawCell(pid,date)===''||rawCell(pid,date)==null||(Array.isArray(rawCell(pid,date))&&!rawCell(pid,date).filter(Boolean).length));
