@@ -2119,7 +2119,7 @@ Object.assign(FORMS,{
 
 /* ================= Roles, locations, loads, dispatch, photos, payroll ================= */
 const ROLES={operator:'Operator',driver:'Driver',labourer:'Labourer',landscaper:'Landscaper',mechanic:'Mechanic',foreman:'Foreman',pit:'Pit / scale house',dispatcher:'Dispatcher',surveyor:'Surveyor',stoneshop:'Stone saw / Stone yard',welder:'Welder / Fabricator',yard:'Yard',office:'Office'};
-const ROLE_TASKS={operator:['operate'],driver:['drive'],labourer:['labour'],landscaper:['landscape'],mechanic:['shop'],foreman:['operate'],pit:['pit','operate'],dispatcher:[],surveyor:['survey'],stoneshop:['stoneyard'],welder:['shop'],yard:['yard'],office:['office']};
+const ROLE_TASKS={operator:['operate'],driver:['drive'],labourer:['labour'],landscaper:['landscape'],mechanic:['shop'],foreman:[],pit:['pit','operate'],dispatcher:[],surveyor:['survey'],stoneshop:['stoneyard'],welder:['shop'],yard:['yard'],office:['office']};
 const LOCS={yard:'Yard',mcclintock:'McClintock Pit',yogi:'Yogi Pit'};
 const locName=k=>LOCS[k]||k||'';
 function rolesOf(pid){const p=S.people[pid]||{};const r=new Set(p.roles||[]);if(p.foreman)r.add('foreman');if(p.pit)r.add('pit');return r}
