@@ -632,7 +632,7 @@ function jobPickerControl(sel,opts){
 }
 function buildJobPickGroups(pid,sel,q,loc,opts){
   opts=opts||{};const activeOnly=opts.activeOnly!==false;const includeLocs=opts.includeLocs!==false;
-  let list=(activeOnly?jobsArr().filter(isLive):workableJobs()).slice();
+  let list=(activeOnly?jobsArr().filter(isLive):workableJobs()).filter(j=>!j.shopWork).slice();
   if(sel&&S.jobs[sel]&&!list.find(j=>j.id===sel))list=[{id:sel,...S.jobs[sel]},...list];
   const qq=(q||'').trim().toLowerCase();
   if(qq){
