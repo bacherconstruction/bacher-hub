@@ -829,7 +829,7 @@ function pageHtml(r,field){
   const p=r.page;
   if(!field&&PAGE_PERM[p]&&!can(PAGE_PERM[p]))return `<div class="panel"><p class="empty">You don't have access to this screen. Ask the admin.</p></div>`;
   if(p==='jobs')return jobsList(field);
-  if(p==='job')return jobDetail(r.id,field);
+  if(p==='job')return jobTabsWrap(r.id,field);
   if(p==='quotes'&&!field)return quotesList();
   if(p==='quote'&&!field)return quoteDetail(r.id);
   if(p==='schedule')return field?(myId()?schedField():claimScreen()):schedOffice();
@@ -2948,6 +2948,19 @@ function simpleCheckForm(eid){const units=equipArr();eid=eid||'';const doneToday
   <p class="err" id="formerr"></p><div class="mactions"><button type="button" class="btn" data-act="close">Cancel</button>${eid?'<button class="btn primary">Done</button>':''}</div></form>`}
 document.addEventListener('change',e=>{if(e.target.dataset.anydef){const d=document.getElementById('c-def');if(d)d.hidden=e.target.value!=='yes'}});
 const otherFirst=(opts,o)=>opts.replace('</option>','</option>'+o);
+UI.jobTabs=UI.jobTabs||'overview';
+const JOB_TABS=[['overview','Overview'],['money','Money'],['breakdown','Breakdown'],['materials','Materials'],['files','Reports & files']];
+const JOB_TAB_OF=[['Crew, next two weeks','overview'],['Progress at','overview'],['Equipment on site','overview'],['Money','money'],['Invoices','money'],['Extras','money'],['Outside costs','money'],['Billing at rates','money'],['Cost breakdown','breakdown'],['Crew hours','breakdown'],['Materials needed','materials'],['Yard materials','materials'],['Loads delivered','materials'],['Daily reports','files'],['Site photos','files'],['Documents','files']];
+const jobTabsWrap=(id,field)=>{const h=jobDetail(id,field);return S.jobs[id]&&!S.jobs[id].shopWork?'<div id="jobtabs"></div>'+h:h};
+function applyJobTabs(){const mk=document.getElementById('jobtabs');if(!mk||mk.dataset.done)return;mk.dataset.done='1';const root=mk.parentElement;const ph=root.querySelector('.pagehead');if(ph&&mk.previousElementSibling!==ph)ph.after(mk);
+  const secs=[...root.querySelectorAll('section.panel')].filter(s=>!s.parentElement.closest('section.panel'));
+  const tabOf=s=>{const h=(s.querySelector('h2')?.textContent||'').trim();const m=JOB_TAB_OF.find(([k])=>h.startsWith(k));return m?m[1]:'overview'};
+  const has=new Set(secs.map(tabOf));const cur=has.has(UI.jobTabs)?UI.jobTabs:'overview';
+  mk.innerHTML=`<div class="tabs" role="tablist" style="margin:4px 0 16px">${JOB_TABS.filter(([k])=>has.has(k)).map(([k,l])=>`<button type="button" class="tab" role="tab" data-act="jobtabs" data-v="${k}" aria-selected="${k===cur}">${l}</button>`).join('')}</div>`;
+  secs.forEach(s=>{s.hidden=tabOf(s)!==cur});
+  root.querySelectorAll('.stack,.grid2').forEach(el=>{if(el.closest('section.panel'))return;el.hidden=![...el.querySelectorAll('section.panel')].some(s=>!s.hidden);if(el.classList.contains('grid2')){const vis=[...el.children].filter(c=>!c.hidden);el.style.gridTemplateColumns=vis.length===1?'1fr':''}})}
+new MutationObserver(()=>applyJobTabs()).observe(document.body,{childList:true,subtree:true});
+Object.assign(ACT,{jobtabs:(d)=>{UI.jobTabs=d.v;const mk=document.getElementById('jobtabs');if(mk){mk.dataset.done='';applyJobTabs();mk.scrollIntoView({block:'nearest'})}}});
 const defaultScreen=(pid,k)=>(k==='schedule'||k==='jobs')?!yardOnly(pid):true;
 const screenOn=(pid,k,dflt)=>{const sc=(S.people[pid]||{}).screens;return sc&&typeof sc==='object'?!!sc[k]:dflt};
 const itemMade=id=>!!(stockCat()[id]||{}).made;
