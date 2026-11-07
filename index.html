@@ -3046,7 +3046,7 @@ Object.assign(FORMS,{
     if(await patch('needs',jobId,{jobId,lines:{[id]:line}})){closeModal();toast(f.dataset.id?'Saved':`Added to ${jobName(jobId)}`)}},
   needmade:async(fd,f)=>{const q=+fd.get('qty');if(!(q>0))return formErr('Enter how many were made.');const jobId=f.dataset.j,id=f.dataset.id;const l=(((S.needs||{})[jobId]||{}).lines||{})[id];if(!l)return;
     const date=fd.get('date')||today(),note=(fd.get('note')||'').trim();
-    if(!(await patch('needs',jobId,{lines:{[id]:{made:(+l.made||0)+q,madeLog:{[newId()]:{at:Date.now(),by:myId()||'',date,qty:q,note}}}}})))return;
+    const base=needState(jobId,l).made;if(!(await patch('needs',jobId,{lines:{[id]:{made:base+q,madeLog:{[newId()]:{at:Date.now(),by:myId()||'',date,qty:q,note}}}}})))return;
     if(l.itemId&&fd.get('stockin')==='on'){const wk=weekKey(fromYmd(date));await patch('stockmoves',wk,{week:wk,moves:{[newId()]:{at:Date.now(),date,itemId:l.itemId,qty:q,type:'in',jobId:'',by:myId()||'',note:'Stone shop: made for '+jobName(jobId)+(note?'. '+note:''),unitCost:0}}})}
     closeModal();toast(`${fh(q)} logged`)},
 });
