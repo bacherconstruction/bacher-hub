@@ -778,7 +778,7 @@ function draw(){
   stackTables(main);
   if(fid){const el=document.getElementById(fid);if(el){el.focus();try{if(ss!=null)el.setSelectionRange(ss,se)}catch(e){}}}
 }
-const PAGE_GROUP={home:'home',jobs:'jobs',job:'jobs',daily:'jobs',docs:'jobs',schedule:'schedule',time:'time',employees:'time',payroll:'time',dispatch:'hauling',pit:'hauling',quotes:'sales',quote:'sales',invoices:'sales',inv:'sales',customers:'sales',cust:'sales',fleet:'shop',unit:'shop',wo:'shop',fuel:'shop',inventory:'shop',stoneshop:'stoneyard',safety:'safety',settings:'settings'};
+const PAGE_GROUP={home:'home',jobs:'jobs',job:'jobs',daily:'jobs',docs:'jobs',schedule:'schedule',time:'time',employees:'time',payroll:'time',dispatch:'hauling',pit:'hauling',quotes:'sales',quote:'sales',invoices:'sales',inv:'sales',customers:'sales',cust:'sales',fleet:'shop',eqstats:'shop',unit:'shop',wo:'shop',fuel:'shop',inventory:'shop',stoneshop:'stoneyard',safety:'safety',settings:'settings'};
 function navGroups(field){
   const pid=myId();const ok=(pg)=>field?true:!(PAGE_PERM[pg]&&!can(PAGE_PERM[pg]));
   let g;
@@ -798,7 +798,7 @@ function navGroups(field){
     {key:'time',label:'Time',pages:[['time','TimeClock'],['employees','Employees'],...(seeWages()?[['payroll','Payroll']]:[])]},
     {key:'hauling',label:'Hauling',pages:[['dispatch','Dispatch'],['pit','Pit']]},
     {key:'sales',label:'Sales',pages:[['quotes','Quotes'],['invoices','Invoices'],['customers','Customers']]},
-    {key:'shop',label:'Shop',pages:[['fleet','Fleet'],['fuel','Fuel'],['inventory','Inventory']]},
+    {key:'shop',label:'Shop',pages:[['fleet','Fleet'],['eqstats','Equipment stats'],['fuel','Fuel'],['inventory','Inventory']]},
     {key:'stoneyard',label:'Stone yard',pages:[['stoneshop','Stone yard']]},
     {key:'safety',label:'Safety',pages:[['safety','Safety']]},
     {key:'settings',label:'Settings',pages:[['settings','Settings']]}];
@@ -843,6 +843,7 @@ function pageHtml(r,field){
   if(p==='customers'&&!field)return custPage();
   if(p==='cust'&&!field)return custDetail(r.id);
   if(p==='fuel'&&!field)return fuelPage();
+  if(p==='eqstats'&&!field)return eqStatsPage();
   if(p==='employees'&&!field)return empPage();
   if(p==='inventory'&&!field)return invtPage();
   if(p==='stoneshop'&&(!field||isStone(myId())||screenOn(myId(),'stoneyard',false)))return field&&!myId()?claimScreen():stoneShopPage(field);
@@ -2985,6 +2986,45 @@ new MutationObserver(ms=>{for(const m of ms)for(const n of m.addedNodes)if(n.nod
 document.addEventListener('DOMContentLoaded',()=>upgradeTimeInputs());
 const OUT_FAR_KM=8;
 const outFar=p=>{const d=distKm(p.outLoc,jobLoc(p.jobId));return d!=null&&d>=OUT_FAR_KM};
+/* ---------- Equipment stats ---------- */
+UI.esPer=UI.esPer||'month';UI.esOff=UI.esOff||0;UI.esKind=UI.esKind||'all';
+const ES_DAY_H=10;const RUN_ACTS=new Set(['operate','landscape','pit','drive']);
+function esRange(per,off){const t=fromYmd(today());let a,b;
+  if(per==='week'){a=fromYmd(weekKey(t));a.setDate(a.getDate()+7*off);b=new Date(a);b.setDate(b.getDate()+6)}
+  else if(per==='month'){a=new Date(t.getFullYear(),t.getMonth()+off,1);b=new Date(a.getFullYear(),a.getMonth()+1,0)}
+  else{a=new Date(t.getFullYear()+off,0,1);b=new Date(a.getFullYear(),11,31)}
+  return {from:ymd(a),to:ymd(b)}}
+function workdays(from,to){const end=to<today()?to:today();let n=0;for(let d=from;d<=end;d=addDays(d,1)){const w=fromYmd(d).getDay();if(w>0&&w<6)n++}return n}
+function esBuckets(per,r){const out=[];if(per==='week'){for(let i=0;i<5;i++){const d=addDays(r.from,i);out.push({from:d,to:d,lab:fromYmd(d).toLocaleDateString('en-CA',{weekday:'short'})})}}
+  else if(per==='month'){let d=r.from;while(d<=r.to){const e=addDays(d,6)>r.to?r.to:addDays(d,6);out.push({from:d,to:e,lab:fromYmd(d).toLocaleDateString('en-CA',{month:'short',day:'numeric'})});d=addDays(e,1)}}
+  else{for(let m=0;m<12;m++){const a=new Date(fromYmd(r.from).getFullYear(),m,1),b=new Date(a.getFullYear(),m+1,0);out.push({from:ymd(a),to:ymd(b),lab:a.toLocaleDateString('en-CA',{month:'short'})})}}
+  return out}
+function esUnits(){return equipArr().filter(e=>!isGeneric(e.id)&&!['trailer','skid'].includes(kindOf(e))&&(UI.esKind==='all'||(UI.esKind==='machine'?['machine','slinger'].includes(kindOf(e)):['truck','pickup'].includes(kindOf(e)))))}
+function esStats(eid,r){const ps=allPunches().filter(p=>p.equipId===eid);const inR=p=>{const d=ymd(new Date(p.in));return d>=r.from&&d<=r.to};
+  let run=0,bill=0,billAmt=0,shop=0;ps.filter(inR).forEach(p=>{const h=hrs(punchMs(p));if(RUN_ACTS.has(p.act)){run+=h;const j=S.jobs[p.jobId];if(j&&!j.shopWork){bill+=h;billAmt+=h*equipRateAt(eid,ymd(new Date(p.in)))}}else if(p.act==='shop')shop+=h});
+  const fu=allFuel().filter(e=>e.equipId===eid&&(()=>{const d=e.date||ymd(new Date(e.at));return d>=r.from&&d<=r.to})());const litres=fu.reduce((a,e)=>a+(+e.litres||0),0);const fuelCost=fu.reduce((a,e)=>a+(+e.litres||0)*(+e.ppl||0),0);
+  const wos=allWOs().filter(w=>w.equipId===eid&&w.date>=r.from&&w.date<=r.to).length;const defs=openDefects(eid).length;
+  const avail=workdays(r.from,r.to)*ES_DAY_H;return {run,bill,billAmt,shop,litres,fuelCost,wos,defs,avail,util:avail?run/avail:0}}
+function eqStatsPage(){const per=UI.esPer,r=esRange(per,UI.esOff);const units=esUnits();const rows=units.map(e=>({e,s:esStats(e.id,r)})).sort((a,b)=>b.s.util-a.s.util||String(a.e.unit).localeCompare(String(b.e.unit),undefined,{numeric:true}));
+  const sum=k=>rows.reduce((a,x)=>a+x.s[k],0);const avail=sum('avail'),run=sum('run'),bill=sum('bill');const util=avail?run/avail:0;const lph=run?sum('litres')/run:0;
+  const pct=x=>Math.round(x*100)+'%';const title=per==='week'?`Week of ${fmtDay(r.from)}`:per==='month'?fromYmd(r.from).toLocaleDateString('en-CA',{month:'long',year:'numeric'}):String(fromYmd(r.from).getFullYear());
+  const bks=esBuckets(per,r).map(b=>{let rr=0,av=0;if(b.from<=today()){av=workdays(b.from,b.to)*ES_DAY_H*units.length;units.forEach(e=>{allPunches().forEach(p=>{if(p.equipId!==e.id||!RUN_ACTS.has(p.act))return;const d=ymd(new Date(p.in));if(d>=b.from&&d<=b.to)rr+=hrs(punchMs(p))})})}return {...b,u:av?rr/av:null,h:rr}});
+  const maxU=Math.max(1,...bks.map(b=>b.u||0));
+  const col=bks.map(b=>{const h=b.u==null?0:Math.max(2,Math.round(b.u/maxU*140));return `<div class="esb" title="${esc(b.lab)}: ${b.u==null?'not yet':pct(b.u)+' · '+fh(rnd2(b.h))+' h running'}"><span class="esv">${b.u==null?'':pct(b.u)}</span><i style="height:${h}px${b.u==null?';background:transparent':''}"></i><span class="esl">${esc(b.lab)}</span></div>`}).join('');
+  const maxRow=Math.max(1,...rows.map(x=>x.s.util));
+  const tile=(lab,val,sub)=>`<div class="fig"><span>${lab}</span><b>${val}</b>${sub?`<small class="muted" style="display:block">${sub}</small>`:''}</div>`;
+  return `<style>.estrend{display:flex;align-items:flex-end;gap:6px;height:190px;padding:8px 0 0;border-bottom:1px solid var(--line)}.esb{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:4px;min-width:0;height:100%}.esb i{display:block;width:min(44px,80%);background:var(--info);border-radius:4px 4px 0 0}.esb:hover i{opacity:.8}.esv{font-size:.78rem;color:var(--muted);font-variant-numeric:tabular-nums}.esl{font-size:.75rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;margin-bottom:-22px}.estrendwrap{padding-bottom:26px}.esrow{display:grid;grid-template-columns:minmax(120px,220px) 1fr 54px;gap:10px;align-items:center;padding:5px 0;text-decoration:none;color:inherit}.esrow:hover{background:var(--soft)}.esbar{height:14px;background:var(--soft);border-radius:4px;overflow:hidden}.esbar i{display:block;height:100%;background:var(--info);border-radius:4px}.esrow b{font-variant-numeric:tabular-nums;text-align:right}</style>
+  <div class="pagehead"><div><h1>Equipment stats</h1><p class="sub">Utilization is running hours against a ${ES_DAY_H}-hour day, Monday to Friday, up to today.</p></div></div>
+  <div class="toolbar" style="flex-wrap:wrap;gap:8px"><div class="chips">${[['week','Week'],['month','Month'],['year','Year']].map(([k,l])=>`<button class="chip" data-act="esper" data-v="${k}" aria-pressed="${per===k}">${l}</button>`).join('')}</div>
+  <div class="row" style="gap:6px"><button class="btn small" data-act="esoff" data-v="-1" aria-label="Previous">‹</button><b style="min-width:140px;text-align:center">${esc(title)}</b><button class="btn small" data-act="esoff" data-v="1" aria-label="Next"${UI.esOff>=0?' disabled':''}>›</button></div>
+  <span class="spacer"></span><div class="chips">${[['all','All'],['machine','Machines'],['truck','Trucks']].map(([k,l])=>`<button class="chip" data-act="eskind" data-v="${k}" aria-pressed="${UI.esKind===k}">${l}</button>`).join('')}</div></div>
+  <section class="panel" style="margin-bottom:16px"><div class="figs">${tile('Fleet utilization',pct(util),`${fh(Math.round(run))} of ${fh(avail)} h`)}${tile('Billable hours',fh(Math.round(bill)),`${money(sum('billAmt'))} at machine rates`)}${tile('Fuel',fh(Math.round(sum('litres')))+' L',[lph?lph.toFixed(1)+' L/h':'',sum('fuelCost')?money(sum('fuelCost')):''].filter(Boolean).join(' · '))}${tile('Maintenance',fh(Math.round(sum('shop')))+' h',`${sum('wos')} work order${sum('wos')===1?'':'s'} · ${sum('defs')} open defect${sum('defs')===1?'':'s'}`)}</div></section>
+  <div class="grid2"><section class="panel"><h2>Fleet utilization, ${per==='week'?'by day':per==='month'?'by week':'by month'}</h2><div class="estrendwrap"><div class="estrend">${col}</div></div></section>
+  <section class="panel"><h2>Utilization by unit</h2>${rows.length?rows.slice(0,12).map(x=>`<a class="esrow" href="#unit/${esc(x.e.id)}" title="${esc(x.e.unit)}: ${fh(rnd2(x.s.run))} h running of ${fh(x.s.avail)} h"><span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(x.e.unit)} <span class="muted">${esc(x.e.desc||'')}</span></span><span class="esbar"><i style="width:${x.s.util?Math.max(2,x.s.util/maxRow*100):0}%"></i></span><b>${pct(x.s.util)}</b></a>`).join('')+(rows.length>12?`<p class="muted" style="margin:8px 0 0">Top 12 shown. Full list below.</p>`:''):'<p class="empty">No units.</p>'}</section></div>
+  <section class="panel" style="margin-top:16px"><h2>All units</h2><div class="tablewrap"><table><thead><tr><th>Unit</th><th class="num">Running h</th><th class="num">Billable h</th><th class="num">Utilization</th><th class="num">At machine rates</th><th class="num">Fuel L</th><th class="num">L/h</th><th class="num">Shop h</th><th class="num">Work orders</th><th class="num">Open defects</th></tr></thead><tbody>
+  ${rows.map(x=>`<tr class="link" data-act="esunit" data-id="${esc(x.e.id)}"><td><b>${esc(x.e.unit)}</b><small>${esc(x.e.desc||x.e.type||'')}</small></td><td class="num">${fh(rnd2(x.s.run))}</td><td class="num">${fh(rnd2(x.s.bill))}</td><td class="num">${pct(x.s.util)}</td><td class="num">${x.s.billAmt?money(x.s.billAmt):'—'}</td><td class="num">${x.s.litres?fh(Math.round(x.s.litres)):'—'}</td><td class="num">${x.s.run&&x.s.litres?(x.s.litres/x.s.run).toFixed(1):'—'}</td><td class="num">${x.s.shop?fh(rnd2(x.s.shop)):'—'}</td><td class="num">${x.s.wos||'—'}</td><td class="num">${x.s.defs?`<b class="flag">${x.s.defs}</b>`:'—'}</td></tr>`).join('')}</tbody></table></div>
+  <p class="muted" style="margin:8px 0 0">Running hours come from operators and drivers clocked onto the unit. Billable hours are the running hours on customer jobs; yard, pit and shop time is excluded. Open defects are as of today.</p></section>`}
+Object.assign(ACT,{esper:(d)=>{UI.esPer=d.v;UI.esOff=0;render()},esoff:(d)=>{UI.esOff=Math.min(0,UI.esOff+(+d.v));render()},eskind:(d)=>{UI.esKind=d.v;render()},esunit:(d)=>{location.hash='unit/'+d.id}});
 const defaultScreen=(pid,k)=>(k==='schedule'||k==='jobs')?!yardOnly(pid):true;
 const screenOn=(pid,k,dflt)=>{const sc=(S.people[pid]||{}).screens;return sc&&typeof sc==='object'?!!sc[k]:dflt};
 const itemMade=id=>!!(stockCat()[id]||{}).made;
@@ -3140,7 +3180,7 @@ function can(k){
   return !!mine[k];
 }
 const hideMoney=()=>isOffice&&!asField()&&!can('money');
-const PAGE_PERM={employees:'money',quotes:'quotes',quote:'quotes',invoices:'invoices',inv:'invoices',customers:'invoices',cust:'invoices',dispatch:'dispatch',pit:'pit',fleet:'fleet',unit:'fleet',fuel:'fuel',inventory:'inventory'};
+const PAGE_PERM={employees:'money',quotes:'quotes',quote:'quotes',invoices:'invoices',inv:'invoices',customers:'invoices',cust:'invoices',dispatch:'dispatch',pit:'pit',fleet:'fleet',unit:'fleet',fuel:'fuel',inventory:'inventory',eqstats:'fleet'};
 const officePeople=()=>activePeople().filter(([,p])=>p.role==='office');
 const officeLinks=()=>((S.links&&S.links.main)||{}).links||{};
 function needsOfficeLink(){return isOffice&&!isAdmin&&!viewAs&&!meId&&officePeople().length>0&&mode!=='local'}
